@@ -6,6 +6,7 @@ import { BaseResponse } from 'src/dto/request/base-response.dto';
 import { PaginationParamsDto } from 'src/dto/request/pagination-params.dto';
 import { FunctionService, PaginateOptions } from 'src/utils/pagination.service';
 import { startOfMonth, endOfMonth, format } from 'date-fns';
+import { use } from 'passport';
 
 
 @Injectable()
@@ -227,11 +228,17 @@ export class EcommerceOrderService {
             model: 'EcommerceOrder',
             page: Number(params.page),
             limit: Number(params.limit),
-            conditions: { userId },
+            conditions: {
+                userId,
+                status: {
+                    notIn: [OrderStatus.COMPLETED, OrderStatus.CANCELLED],
+                },
+            },
             orderBy: { createdAt: 'desc' },
             selectAndInclude: {
                 include: {
                     items: { include: { product: true } },
+                    user: true,
                 },
                 select: null,
             },
@@ -240,6 +247,33 @@ export class EcommerceOrderService {
         const data = await this.functionService.paginate(options);
         return new BaseResponse(200, 'Commandes utilisateur paginées', data);
     }
+
+    async getOrdersHistoryByUserId(userId: string, params: PaginationParamsDto): Promise<BaseResponse<any>> {
+        const options: PaginateOptions = {
+            model: 'EcommerceOrder',
+            page: Number(params.page),
+            limit: Number(params.limit),
+            conditions: {
+                userId,
+                status: {
+                    in: [OrderStatus.CANCELLED, OrderStatus.COMPLETED],
+                },
+            },
+            orderBy: { createdAt: 'desc' },
+            selectAndInclude: {
+                include: {
+                    items: { include: { product: true } },
+                    user: true,
+                },
+                select: null,
+            },
+        };
+
+        const data = await this.functionService.paginate(options);
+        return new BaseResponse(200, 'Commandes utilisateur paginées', data);
+    }
+
+
 
     async getOrdersByProductCreator(creatorId: string, params: PaginationParamsDto): Promise<BaseResponse<any>> {
         const options: PaginateOptions = {

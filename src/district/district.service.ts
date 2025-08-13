@@ -2,10 +2,39 @@ import { Injectable, NotFoundException, InternalServerErrorException } from '@ne
 import { PrismaService } from 'src/prisma/prisma.service';
 import { BaseResponse } from 'src/dto/request/base-response.dto';
 import { CreateDistrictDto, UpdateDistrictDto } from 'src/dto/request/district.dto';
+import { FunctionService, PaginateOptions } from 'src/utils/pagination.service';
 
 @Injectable()
 export class DistrictService {
-    constructor(private readonly prisma: PrismaService) { }
+    constructor(
+        private readonly prisma: PrismaService,
+        private readonly functionService: FunctionService,
+    ) { }
+
+
+    async getAllparginate(page: number, limit: number): Promise<BaseResponse<any>> {
+        try {
+            const paginateOptions: PaginateOptions = {
+                model: 'District',
+                page: Number(page),
+                limit: Number(limit),
+                selectAndInclude: {
+                    select: null,
+                    include: {
+                        // regions: true,
+                    },
+                },
+                orderBy: { nom: 'asc' },
+            };
+
+            const data = await this.functionService.paginate(paginateOptions);
+
+            return new BaseResponse(200, 'Liste paginée des districts', data);
+        } catch (error) {
+            console.error('Erreur lors de la récupération des districts :', error);
+            throw new InternalServerErrorException('Erreur lors de la récupération des districts');
+        }
+    }
 
     async findAll(): Promise<BaseResponse<any>> {
         const data = await this.prisma.district.findMany({ orderBy: { nom: 'asc' } });
@@ -43,4 +72,6 @@ export class DistrictService {
             throw new InternalServerErrorException('Erreur lors de la suppression');
         }
     }
+
+
 }

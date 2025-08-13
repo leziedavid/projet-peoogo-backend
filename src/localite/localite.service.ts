@@ -2,10 +2,39 @@ import { Injectable, NotFoundException, InternalServerErrorException } from '@ne
 import { PrismaService } from 'src/prisma/prisma.service';
 import { BaseResponse } from 'src/dto/request/base-response.dto';
 import { CreateLocaliteDto, UpdateLocaliteDto } from 'src/dto/request/localite.dto';
+import { FunctionService, PaginateOptions } from 'src/utils/pagination.service';
 
 @Injectable()
 export class LocaliteService {
-    constructor(private readonly prisma: PrismaService) { }
+    constructor(private readonly prisma: PrismaService,
+        private readonly functionService: FunctionService,
+
+    ) { }
+
+
+    async getAllparginate(page: number, limit: number): Promise<BaseResponse<any>> {
+        try {
+            const paginateOptions: PaginateOptions = {
+                model: 'Localite',
+                page: Number(page),
+                limit: Number(limit),
+                selectAndInclude: {
+                    select: null,
+                    include: {
+                        sousPrefecture: true,
+                    },
+                },
+                orderBy: { nom: 'asc' },
+            };
+
+            const data = await this.functionService.paginate(paginateOptions); // ✅
+
+            return new BaseResponse(200, 'Liste paginée des localités', data);
+        } catch (error) {
+            console.error('Erreur lors de la récupération des localités :', error);
+            throw new InternalServerErrorException('Erreur lors de la récupération des localités');
+        }
+    }
 
     async findAll(): Promise<BaseResponse<any>> {
         const data = await this.prisma.localite.findMany({

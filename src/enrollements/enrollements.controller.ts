@@ -25,20 +25,13 @@ export class EnrollementsController {
     @UseInterceptors(FileFieldsInterceptor([{ name: 'photo', maxCount: 1 }, { name: 'photo_document_1', maxCount: 1 }, { name: 'photo_document_2', maxCount: 1 },]),)
     @ApiResponse({ status: 201, description: 'Enrollement créé avec succès.' })
     async create(
-        @UploadedFiles()
-        files: {
-            photo?: Express.Multer.File[];
-            photo_document_1?: Express.Multer.File[];
-            photo_document_2?: Express.Multer.File[];
-        },
+        @UploadedFiles() files: { photo?: Express.Multer.File[]; photo_document_1?: Express.Multer.File[]; photo_document_2?: Express.Multer.File[] },
         @Body() dto: CreateEnrollementsDto, @Req() req: Request) {
         // Injecter les fichiers dans le dto en adaptant au buffer attendu
-        dto.photo = files.photo?.[0] ?? undefined;
-        dto.photo_document_1 = files.photo_document_1?.[0] ?? undefined;
-        dto.photo_document_2 = files.photo_document_2?.[0] ?? undefined;
-
+        dto.photo = files.photo?.[0] ?? null;
+        dto.photo_document_1 = files.photo_document_1?.[0] ?? null;
+        dto.photo_document_2 = files.photo_document_2?.[0] ?? null;
         const user = req.user as any; // typage personnalisé si disponible
-
         return this.enrollementsService.create(user?.userId, dto);
     }
 
@@ -95,15 +88,37 @@ export class EnrollementsController {
         return this.enrollementsService.findAll();
     }
 
-    // @UseGuards(JwtAuthGuard)
+    @UseGuards(JwtAuthGuard)
     @Get('paginate/liste/all')
     @ApiOperation({ summary: 'Liste paginée de tous les enrôlements' })
     @ApiResponse({ status: 200, description: 'Liste des enrôlements paginées.' })
-    @ApiQuery({ name: 'page', required: false, type: Number })
-    @ApiQuery({ name: 'limit', required: false, type: Number })
+    @ApiQuery({ name: 'page', required: false, type: Number, example: 1 })
+    @ApiQuery({ name: 'limit', required: false, type: Number, example: 10 })
     async getAllPaginate(@Req() req: Request, @Query() pagination: PaginationParamsDto) {
         const user = req.user as any;
-        return this.enrollementsService.getAllPaginate(pagination);
+        return this.enrollementsService.assignLotIfNeeded(user.userId,pagination);
+    }
+
+    @UseGuards(JwtAuthGuard)
+    @Get('liest/enrollement/paginate/by-agent')
+    @ApiOperation({ summary: 'Liste paginée des enrôlements par agent' })
+    @ApiResponse({ status: 200, description: 'Liste des enrôlements paginées par agent.' })
+    @ApiQuery({ name: 'page', required: false, type: Number, example: 1 })
+    @ApiQuery({ name: 'limit', required: false, type: Number, example: 10 })
+    async getByAgent(@Req() req: Request, @Query() pagination: PaginationParamsDto) {
+        const user = req.user as any;
+        return this.enrollementsService.getPaginatedByAgent(user.userId,pagination);
+    }
+
+    @UseGuards(JwtAuthGuard)
+    @Get('paginates/listes/one/paginate-all')
+    @ApiOperation({ summary: 'Liste paginée de tous les enrôlements' })
+    @ApiResponse({ status: 200, description: 'Liste des enrôlements paginées.' })
+    @ApiQuery({ name: 'page', required: false, type: Number, example: 1 })
+    @ApiQuery({ name: 'limit', required: false, type: Number, example: 10 })
+    async getAllPaginateOne(@Req() req: Request, @Query() pagination: PaginationParamsDto) {
+        const user = req.user as any;
+        return this.enrollementsService.getAllPaginateOne(user.userId,pagination);
     }
 
     // getStatistiquesControle
@@ -111,20 +126,21 @@ export class EnrollementsController {
     @Get('stats/controle')
     @ApiOperation({ summary: 'Récupération des statistiques de contrôle' })
     @ApiResponse({ status: 200, description: 'Statistiques de contrôle.' })
-    async getStatistiquesControle(@Req() req: Request) {
+    @ApiQuery({ name: 'numero_lot', required: false, description: 'Numéro de lot' })
+    async getStatistiquesControle(
+        @Req() req: Request,
+        @Query('numero_lot') numero_lot?: string,
+    ) {
         const user = req.user as any; // typage personnalisé si disponible
-        return this.enrollementsService.getStatistiquesControle(user?.userId);
+        return this.enrollementsService.getStatistiquesControle(user?.userId,numero_lot);
     }
 
     // getStatsAdmin
-    // @UseGuards(JwtAuthGuard)
+    @UseGuards(JwtAuthGuard)
     @Post('stats/admin')
     @ApiOperation({ summary: 'Récupération des statistiques d’administration' })
     @ApiResponse({ status: 200, description: 'Statistiques d’administration.' })
-    async getStatsAdmin(
-        @Body() filters: EnrollementAdminFilterDto,
-        @Req() req: Request,
-    ) {
+    async getStatsAdmin(@Body() filters: EnrollementAdminFilterDto,@Req() req: Request,) {
         return this.enrollementsService.getStatsAdmin(filters);
     }
 
@@ -144,8 +160,5 @@ export class EnrollementsController {
     async filterEnrollements( @Body() filters: FilterDto, @Query() params: PaginationParamsDto,) {
         return this.enrollementsService.enrollementFilter(filters, params);
     }
-
-
-
 
 }

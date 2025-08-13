@@ -13,9 +13,6 @@ import * as XLSX from 'xlsx';
 export class SpeculationService {
     constructor(private readonly prisma: PrismaService) { }
 
-
-
-
     private parseCSV(buffer: Buffer): any[] {
         const csvString = buffer.toString('utf-8');
         return parse(csvString, {

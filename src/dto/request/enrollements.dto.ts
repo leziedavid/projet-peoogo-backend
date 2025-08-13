@@ -151,3 +151,11 @@ export class EnrollementsDto {
 
 export class CreateEnrollementsDto extends OmitType(EnrollementsDto, ['id'] as const) {}
 export class UpdateEnrollementsDto extends PartialType(CreateEnrollementsDto) {}
+
+
+
+
+// mise ajour 
+// UPDATE public."Enrollements"
+// SET code = 'ENR' || (TRUNC(random() * 9000) + 1000)::INT || '#'
+// WHERE id = 'f97a3ebb-3200-434e-b8ca-08f65b208652';

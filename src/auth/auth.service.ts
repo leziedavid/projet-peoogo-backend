@@ -19,6 +19,7 @@ import { UpdateProfileDto } from 'src/dto/request/update-profile.dto';
 import { LoginWithCodeDto } from 'src/dto/request/login-code.dto';
 import { LoginWithPhoneDto } from 'src/dto/request/login-phone.dto';
 import { FilterUserDto } from 'src/dto/request/filter-user.dto';
+import { LoginByPhoneCode } from 'src/dto/request/LoginByPhoneCode.dto';
 
 
 @Injectable()
@@ -49,12 +50,13 @@ export class AuthService {
             data: {
                 email: dto.email,
                 name: dto.name,
-                phoneCountryCode: dto.phoneCountryCode,
+                // phoneCountryCode: dto.phoneCountryCode,
                 phoneNumber: dto.phoneNumber,
                 password: hashed,
                 passwordGenerate: passwordGenerat,
                 role: dto.role,
-                status: UserStatus.INACTIVE,
+                status: UserStatus.ACTIVE,
+                typeCompte: dto.typeCompte,
                 wallet: { create: { balance: 0, accountNumber: accountNumberGenearate } },
             },
         });
@@ -67,38 +69,6 @@ export class AuthService {
                     data: {
                         ...upload,
                         fileType: 'userFiles',
-                        targetId: user.id,
-                    },
-                });
-            } catch (err) {
-                throw new InternalServerErrorException('Erreur lors de l’upload de l’image');
-            }
-        }
-        // Image de la carte nationale didentité  accountNumber:accountNumber
-        if (dto.carte) {
-            try {
-                const upload = await this.cloudinary.uploadFile(dto.file.buffer, 'users');
-
-                await this.prisma.fileManager.create({
-                    data: {
-                        ...upload,
-                        fileType: 'userCarte',
-                        targetId: user.id,
-                    },
-                });
-            } catch (err) {
-                throw new InternalServerErrorException('Erreur lors de l’upload de l’image');
-            }
-        }
-        // image du permis de conduite
-        if (dto.permis) {
-            try {
-                const upload = await this.cloudinary.uploadFile(dto.file.buffer, 'users');
-
-                await this.prisma.fileManager.create({
-                    data: {
-                        ...upload,
-                        fileType: 'userPermis',
                         targetId: user.id,
                     },
                 });
@@ -147,6 +117,60 @@ export class AuthService {
             },
         });
     }
+
+    async loginByPhoneCode(dto: LoginByPhoneCode): Promise<BaseResponse<{ access_token: string; refresh_token: string; user: any }>> {
+        const isCode = /[a-zA-Z#]/.test(dto.login); // S'il y a des lettres ou '#' dans login, on considère que c'est un code
+
+        // Recherche utilisateur selon type de login
+        const user = isCode
+            ? await this.prisma.user.findFirst({ where: { codeGenerate: dto.login } })
+            : await this.prisma.user.findUnique({ where: { phoneNumber: dto.login } });
+
+        if (!user) throw new UnauthorizedException('Utilisateur non trouvé');
+        console.log('🚀 User:', user);
+        
+        const ok = await bcrypt.compare(dto.password, user.password);
+        if (!ok) throw new UnauthorizedException('Mot de passe incorrect');
+        if (user.status === UserStatus.INACTIVE) throw new UnauthorizedException('Compte inactif');
+        if (user.status === UserStatus.BLOCKED) throw new UnauthorizedException('Compte bloqué');
+
+        // Récupération image utilisateur
+        const file = await this.prisma.fileManager.findFirst({
+            where: { targetId: user.id, fileType: 'userFiles' },
+            orderBy: { createdAt: 'desc' },
+        });
+
+        // Récupération wallet
+        const wallet = await this.prisma.wallet.findUnique({ where: { userId: user.id } });
+        const imageUrl = file?.fileUrl || null;
+
+        const payload = {
+            sub: user.id,
+            role: user.role,
+            status: user.status,
+            name: user.name,
+            imageUrl,
+            wallet: wallet?.balance ?? 0,
+            compte: wallet?.accountNumber ?? null,
+        };
+
+        const access = this.jwtService.sign(payload, { expiresIn: '15m' });
+        const refresh = this.jwtService.sign(payload, { expiresIn: '7d' });
+
+        return new BaseResponse(200, 'Connexion réussie', {
+            access_token: access,
+            refresh_token: refresh,
+            user: {
+                id: user.id,
+                email: user.email,
+                name: user.name,
+                role: user.role,
+                status: user.status,
+                imageUrl,
+            },
+        });
+    }
+
 
     /** Rafraîchir access token */
     async refreshToken(token: string): Promise<BaseResponse<{ access_token: string }>> {
@@ -886,12 +910,12 @@ export class AuthService {
 
     async getUserEnrollementDataByCode(rawCode: string): Promise<BaseResponse<any>> {
         const cleanCode = rawCode.replace(/\s+/g, ''); // ⚠️ Supprimer tous les espaces
-        console.log('cleanCode:', cleanCode);
+        console.log('cleanCode:', cleanCode+"#");
         // Rechercher l'utilisateur avec un codeGenerate nettoyé
         const user = await this.prisma.user.findFirst({
             where: {
                 codeGenerate: {
-                    equals: cleanCode,
+                    equals: cleanCode+"#",
                     mode: 'insensitive',
                 },
             },
@@ -901,12 +925,12 @@ export class AuthService {
         });
 
         if (!user) throw new NotFoundException('Utilisateur non trouvé avec ce code');
-
+        console.log('user:', user);
         // Rechercher l’enrollement avec un code (nettoyé)
         const enrollement = await this.prisma.enrollements.findFirst({
             where: {
                 code: {
-                    equals: cleanCode,
+                    equals: cleanCode+"#",
                     mode: 'insensitive',
                 },
             },
@@ -939,6 +963,5 @@ export class AuthService {
             enrollement,
         });
     }
-
 
 }

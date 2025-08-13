@@ -7,8 +7,10 @@ import { PaginationParamsDto } from 'src/dto/request/pagination-params.dto';
 import { startOfMonth, endOfMonth, subMonths, format } from 'date-fns';
 import { Express } from 'express';
 import { CreateDecoupageDto } from 'src/dto/request/decoupage.dto';
-import { ProductStatus, TypeCompte } from '@prisma/client';
+import { Prisma, ProductStatus, TypeCompte } from '@prisma/client';
 import { FunctionService, PaginateOptions } from 'src/utils/pagination.service';
+import { MarketProduitFilterDto } from 'src/dto/request/marketProduitFilter.dto';
+import { subHours, subDays } from 'date-fns';
 
 @Injectable()
 export class ProductService {
@@ -104,6 +106,51 @@ export class ProductService {
         const user = await this.prisma.user.findFirst({
             where: {
                 codeGenerate: {
+                    equals: cleanCode+"#",
+                    mode: 'insensitive',
+                },
+            },
+            include: {
+                wallet: true,
+            },
+        });
+
+        const enrollement = await this.prisma.enrollements.findFirst({
+            where: {
+                code: {
+                    equals: cleanCode,
+                    mode: 'insensitive',
+                },
+            }
+        });
+
+        const fichier = this.getProductImages(user.id);
+
+        // Aucun utilisateur ou enrôlement : retourne un tableau vide
+        if (!user || !enrollement) {
+            return [];
+        }
+        // On retourne sous forme de tableau d’un seul objet
+        return [
+            {
+                id: user.id,
+                name: user.name,
+                email: user.email,
+                phoneNumber: user.phoneNumber,
+                wallet: user.wallet,
+                generatedCode: user.codeGenerate,
+                code: enrollement.code,
+                photo: fichier[0],
+            },
+        ];
+    }
+
+    private async getUserByCodeGenerateOne(rawCode: string): Promise<any[]> {
+
+        const cleanCode = rawCode.replace(/\s+/g, '');
+        const user = await this.prisma.user.findFirst({
+            where: {
+                codeGenerate: {
                     equals: cleanCode,
                     mode: 'insensitive',
                 },
@@ -144,24 +191,17 @@ export class ProductService {
     }
 
     async createProduct(dto: CreateProductDto, userId: string): Promise<BaseResponse<{ productId: string }>> {
-
         const decoupages = await this.findDecoupageOrFail(dto.decoupage);
         const { image, autreImage, prixUnitaire, prixEnGros, quantite, decoupage, ...productData } = dto as any;
 
+        console.log('🚀 codeUsers:', autreImage);
         try {
-
             const code = await this.generateUniqueProductCode();
             const prixUnitaireNumber = parseFloat(prixUnitaire);
             const prixEnGrosNumber = parseFloat(prixEnGros);
             const quantiteNumber = parseInt(quantite, 10);
 
-            let imageUrl = null;
-            if (image) {
-                const uploadResult = await this.cloudinary.uploadFile(image.buffer, 'products');
-                imageUrl = uploadResult.fileUrl;
-            }
-
-            // Construction data sans decoupage
+            // Étape 1 : Création du produit sans image
             const dataToSave: any = {
                 ...productData,
                 decoupageId: decoupages.id,
@@ -180,33 +220,30 @@ export class ProductService {
                 status: ProductStatus.ACTIVE,
                 addedById: userId,
                 codeUsers: dto.codeUsers,
-                imageUrl: imageUrl,
             };
 
-            // Nettoyage : suppression si jamais 'decoupage' traîne
             if ('decoupage' in dataToSave) delete dataToSave.decoupage;
 
-            console.log('dataToSave:', dataToSave); // DEBUG
-            console.log('userId:', userId); // DEBUG
+            const product = await this.prisma.product.create({ data: dataToSave });
 
-            const products = await this.prisma.product.create({
-                data: dataToSave,
-            });
-
-            
-                        // Upload des fichiers un par un
+            // Étape 2 : Upload image principale (si présente)
             if (image) {
-                await this.uploadAndSaveSingleFile(products.id, image, 'productFiles', 'products');
+                const uploadResult = await this.cloudinary.uploadFile(image.buffer, 'products');
+                await this.prisma.product.update({
+                    where: { id: product.id },
+                    data: { imageUrl: uploadResult.fileUrl },
+                });
             }
 
-
-        if (autreImage && autreImage.length > 0) {
-            for (const file of autreImage) {
-                await this.uploadAndSaveSingleFile(products.id, file.buffer, 'productFiles', 'products');
+            // Étape 3 : Upload autres images
+            if (autreImage && autreImage.length > 0) {
+                for (const file of autreImage) {
+                    await this.uploadAndSaveSingleFile(product.id, file.buffer, 'productFiles', 'products');
+                }
             }
-        }
 
-            return new BaseResponse(201, 'Produit créé avec succès', { productId: products.id });
+            // return new BaseResponse(201, 'Produit créé avec succès',{ productId:"1" });
+            return new BaseResponse(201, 'Produit créé avec succès', { productId: product.id });
 
         } catch (error) {
             console.error(error);
@@ -229,66 +266,74 @@ export class ProductService {
             decoupageId = decoupages.id;
         }
 
-        const fileType = 'productFiles';
-        let imageUrl = null;
-
-        const existingFile = await this.prisma.fileManager.findFirst({
-            where: { targetId: id, fileType },
-            orderBy: { createdAt: 'desc' },
-        });
-
-        if (existingFile?.fileCode) {
-            try {
-                await this.cloudinary.deleteFileByPublicId(existingFile.fileCode);
-            } catch (error) {
-                console.warn(`Erreur suppression Cloudinary ${existingFile.fileCode}: ${error.message}`);
-            }
-            await this.prisma.fileManager.deleteMany({
-                where: { targetId: id, fileType },
-            });
-        }
-
-        if (image) {
-            const uploadResult = await this.cloudinary.uploadFile(image.buffer, 'products');
-            imageUrl = uploadResult.fileUrl;
-        }
-
+        // Préparation des données à mettre à jour (sans imageUrl)
         const dataToUpdate: any = {
             ...productData,
             decoupageId,
-            nom: dto.nom,
-            description: dto.description,
-            saleType: dto.saleType,
-            paymentMethod: dto.paymentMethod,
+            nom: dto.nom ?? existing.nom,
+            description: dto.description ?? existing.description,
+            saleType: dto.saleType ?? existing.saleType,
+            paymentMethod: dto.paymentMethod ?? existing.paymentMethod,
             disponibleDe: dto.disponibleDe ? new Date(dto.disponibleDe) : existing.disponibleDe,
             disponibleJusqua: dto.disponibleJusqua ? new Date(dto.disponibleJusqua) : existing.disponibleJusqua,
-            unite: dto.unite,
+            unite: dto.unite ?? existing.unite,
             prixUnitaire: prixUnitaire ? parseFloat(prixUnitaire) : existing.prixUnitaire,
             prixEnGros: prixEnGros ? parseFloat(prixEnGros) : existing.prixEnGros,
             quantite: quantite ? parseInt(quantite, 10) : existing.quantite,
-            typeActeur: dto.typeActeur as TypeCompte ?? existing.typeActeur,
+            typeActeur: dto.typeActeur ?? existing.typeActeur,
             updatedAt: new Date(),
             codeUsers: dto.codeUsers ?? existing.codeUsers,
-            imageUrl: imageUrl ?? existing.imageUrl,
         };
 
         // Nettoyage
-        if ('decoupage' in dataToUpdate) delete dataToUpdate.decoupage;
+        delete dataToUpdate.decoupage;
 
-        await this.prisma.enrollements.update({
+        // Mise à jour du produit sans imageUrl
+        await this.prisma.product.update({
             where: { id },
             data: dataToUpdate,
         });
 
-        // Upload nouvelle image principale si présente
+        const fileType = 'productFiles';
+
+        // Si nouvelle image principale envoyée, on supprime l’ancienne puis on upload la nouvelle
         if (image) {
-            await this.uploadAndSaveSingleFile(id, image, 'productFiles', 'products');
+            // Trouver l’ancienne image principale liée au produit
+            const existingFile = await this.prisma.fileManager.findFirst({
+                where: { targetId: id, fileType },
+                orderBy: { createdAt: 'desc' },
+            });
+
+            if (existingFile?.fileCode) {
+                try {
+                    await this.cloudinary.deleteFileByPublicId(existingFile.fileCode);
+                } catch (error) {
+                    console.warn(`Erreur suppression Cloudinary ${existingFile.fileCode}: ${error.message}`);
+                }
+                // Supprimer les anciens fichiers liés (images principales)
+                await this.prisma.fileManager.deleteMany({
+                    where: { targetId: id, fileType },
+                });
+            }
+
+            // Upload nouvelle image principale
+            const uploadResult = await this.cloudinary.uploadFile(image.buffer, 'products');
+            const imageUrl = uploadResult.fileUrl;
+
+            // Mise à jour du produit avec la nouvelle image principale
+            await this.prisma.product.update({
+                where: { id },
+                data: { imageUrl },
+            });
+
+            // Sauvegarde du fichier uploadé en base
+            await this.uploadAndSaveSingleFile(id, image, fileType, 'products');
         }
 
-        // Upload des autres images si présentes
+        // Pour les autres images, on ajoute sans supprimer les existantes
         if (autreImage && autreImage.length > 0) {
             for (const file of autreImage) {
-                await this.uploadAndSaveSingleFile(id, file.buffer, 'productFiles', 'products');
+                await this.uploadAndSaveSingleFile(id, file.buffer, fileType, 'products');
             }
         }
 
@@ -318,14 +363,56 @@ export class ProductService {
     }
 
     async deleteProduct(id: string, userId: string): Promise<BaseResponse<null>> {
+
         const product = await this.prisma.product.findUnique({ where: { id } });
-        if (!product) throw new NotFoundException('Produit introuvable');
+
+        if (!product) {
+            throw new NotFoundException('Produit introuvable');
+        }
 
         if (product.addedById !== userId) {
             throw new ForbiddenException('Vous n’êtes pas autorisé à supprimer ce produit');
         }
 
+        // Étape 1 : Supprimer les fichiers associés au produit dans Cloudinary et en DB
+        const files = await this.prisma.fileManager.findMany({
+            where: { targetId: id },
+        });
+
+        for (const file of files) {
+            try {
+                if (file.fileCode) {
+                    await this.cloudinary.deleteFileByPublicId(file.fileCode);
+                }
+            } catch (error) {
+                console.warn(`Erreur suppression fichier ${file.fileCode} : ${error.message}`);
+            }
+        }
+
+        // Supprimer les entrées dans fileManager
+        await this.prisma.fileManager.deleteMany({
+            where: { targetId: id },
+        });
+
+        // Étape 2 : Supprimer l'image principale du produit (imageUrl)
+        if (product.imageUrl) {
+            try {
+                // Extraire le `public_id` à partir de l'URL
+                const regex = /\/([^\/]+)\.[a-z]+$/;
+                const match = product.imageUrl.match(regex);
+                const publicId = match ? match[1] : null;
+
+                if (publicId) {
+                    await this.cloudinary.deleteFileByPublicId(publicId);
+                }
+            } catch (error) {
+                console.warn(`Erreur suppression image principale : ${error.message}`);
+            }
+        }
+
+        // Étape 3 : Supprimer le produit
         await this.prisma.product.delete({ where: { id } });
+
         return new BaseResponse(200, 'Produit supprimé', null);
     }
 
@@ -412,7 +499,7 @@ export class ProductService {
             data.data.map(async (product) => {
                 const isDisponible = new Date(product.disponibleDe) <= now && new Date(product.disponibleJusqua) >= now;
                 const images = await this.getProductImages(product.id);
-                const userInfo = await this.getUserByCodeGenerate(product.codeUsers);
+                const userInfo = await this.getUserByCodeGenerateOne(product.codeUsers);
 
                 return {
                     ...product,
@@ -459,7 +546,7 @@ export class ProductService {
             data.data.map(async (product) => {
                 const isDisponible = new Date(product.disponibleDe) <= now && new Date(product.disponibleJusqua) >= now;
                 const images = await this.getProductImages(product.id);
-                const userInfo = await this.getUserByCodeGenerate(product.codeUsers);
+                const userInfo = await this.getUserByCodeGenerateOne(product.codeUsers);
 
                 return {
                     ...product,
@@ -473,6 +560,186 @@ export class ProductService {
         return new BaseResponse(200, 'Tous les produits avec leur statut et images', data);
     }
 
+    async filterProductsWithStatus( dto: MarketProduitFilterDto, params: PaginationParamsDto,): Promise<BaseResponse<any>> {
+        const { page = 1, limit = 10 } = params;
+        const now = new Date();
+
+        // 🎯 Filtre initial actif uniquement sur les produits actifs
+        const filters: Prisma.ProductWhereInput = {
+            status: ProductStatus.ACTIVE,
+        };
+
+        // 1. CATEGORIE
+        if (dto.categorie && dto.categorie.trim() !== '') {
+            filters.nom = {
+                contains: dto.categorie.trim(),
+                mode: 'insensitive',
+            };
+        }
+
+        // 2. TYPE DE VENTE
+        if (dto.typeVente && dto.typeVente.trim() !== '') {
+            filters.saleType = dto.typeVente.trim();
+        }
+
+        // 3. PRIX
+        if ((typeof dto.prixMin === 'number' && dto.prixMin > 0) || (typeof dto.prixMax === 'number' && dto.prixMax > 0)) {
+            filters.prixUnitaire = {};
+            if (dto.prixMin > 0) filters.prixUnitaire.gte = dto.prixMin;
+            if (dto.prixMax > 0) filters.prixUnitaire.lte = dto.prixMax;
+        }
+
+        // 4. QUANTITE
+        if ((typeof dto.qteMin === 'number' && dto.qteMin > 0) || (typeof dto.qteMax === 'number' && dto.qteMax > 0)) {
+            filters.quantite = {};
+            if (dto.qteMin > 0) filters.quantite.gte = dto.qteMin;
+            if (dto.qteMax > 0) filters.quantite.lte = dto.qteMax;
+        }
+
+        // 5. PERIODE
+        if (dto.periode && dto.periode.trim() !== '') {
+            let dateLimit: Date | null = null;
+            switch (dto.periode) {
+                case '24h':
+                    dateLimit = subHours(now, 24);
+                    break;
+                case '7j':
+                    dateLimit = subDays(now, 7);
+                    break;
+                case '30j':
+                    dateLimit = subDays(now, 30);
+                    break;
+            }
+            if (dateLimit) {
+                filters.createdAt = { gte: dateLimit };
+            }
+        }
+
+        // 6. DECOUPAGE (si au moins un ID est présent et non vide)
+        const hasDecoupage =
+            dto.decoupage &&
+            Object.values(dto.decoupage).some((val) => typeof val === 'string' && val.trim() !== '');
+
+        if (hasDecoupage) {
+            const decoupage = await this.prisma.decoupage.findFirst({
+                where: {
+                    districtId: dto.decoupage.districtId?.trim() || undefined,
+                    regionId: dto.decoupage.regionId?.trim() || undefined,
+                    departmentId: dto.decoupage.departmentId?.trim() || undefined,
+                    sousPrefectureId: dto.decoupage.sousPrefectureId?.trim() || undefined,
+                    localiteId: dto.decoupage.localiteId?.trim() || undefined,
+                },
+            });
+
+            if (decoupage) {
+                filters.decoupageId = decoupage.id;
+            } else {
+                // Aucun découpage correspondant → aucun produit
+                return new BaseResponse(200, 'Aucun produit trouvé', {
+                    data: [],
+                    meta: { total: 0, page, limit },
+                });
+            }
+        }
+
+        // 7. Pagination avec filtres stricts
+        const paginateOptions: PaginateOptions = {
+            model: 'Product',
+            page: Number(page),
+            limit: Number(limit),
+            conditions: filters,
+            selectAndInclude: {
+                select: null,
+                include: {
+                    decoupage: {
+                        include: {
+                            district: true,
+                            region: true,
+                            department: true,
+                            sousPrefecture: true,
+                            localite: true,
+                        },
+                    },
+                    addedBy: true,
+                },
+            },
+            orderBy: { disponibleDe: 'desc' },
+        };
+
+        const data = await this.functionService.paginate(paginateOptions);
+
+        // 8. Ajouter statut, images, user info
+        data.data = await Promise.all(
+            data.data.map(async (product) => {
+                const isDisponible =
+                    new Date(product.disponibleDe) <= now && new Date(product.disponibleJusqua) >= now;
+                const images = await this.getProductImages(product.id);
+                const userInfo = await this.getUserByCodeGenerateOne(product.codeUsers);
+
+                return {
+                    ...product,
+                    statut: isDisponible ? 'disponible' : 'indisponible',
+                    images,
+                    userInfo,
+                };
+            }),
+        );
+
+        return new BaseResponse(200, 'Produits filtrés avec succès', data);
+    }
+
+
+    async geProduitstById(id: string): Promise<BaseResponse<any>> {
+        try {
+            const now = new Date();
+
+            // Récupération du produit avec ses relations
+            const product = await this.prisma.product.findUnique({
+                where: { id },
+                include: {
+                    decoupage: {
+                        include: {
+                            district: true,
+                            region: true,
+                            department: true,
+                            sousPrefecture: true,
+                            localite: true,
+                        },
+                    },
+                    addedBy: true,
+                },
+            });
+
+            if (!product) {
+                return new BaseResponse(404, 'Produit non trouvé', null);
+            }
+
+            // Calcul du statut (disponible / indisponible)
+            const isDisponible =
+                new Date(product.disponibleDe) <= now &&
+                new Date(product.disponibleJusqua) >= now;
+
+            // Récupération des images
+            const images = await this.getProductImages(product.id);
+
+            // Récupération des infos utilisateur
+            const userInfo = await this.getUserByCodeGenerateOne(product.codeUsers);
+
+            // Assemblage final
+            const fullProduct = {
+                ...product,
+                statut: isDisponible ? 'disponible' : 'indisponible',
+                images,
+                userInfo,
+            };
+
+            return new BaseResponse(200, 'Détail du produit récupéré avec succès', fullProduct);
+        } catch (error) {
+            console.error('Erreur dans getById:', error);
+            throw new InternalServerErrorException("Erreur lors de la récupération du produit");
+        }
+    }
+
     async getProducteurProductsByCode(code: string, params: PaginationParamsDto): Promise<BaseResponse<any>> {
         const { page, limit } = params;
         const now = new Date();
@@ -482,7 +749,7 @@ export class ProductService {
             page: Number(page),
             limit: Number(limit),
             conditions: {
-                codeUsers: code, // filtre correct basé sur ton modèle
+                codeUsers: code+"#", // filtre correct basé sur ton modèle
             },
             selectAndInclude: {
                 select: null,
@@ -508,13 +775,13 @@ export class ProductService {
         data.data = await Promise.all(
             data.data.map(async (product) => {
                 const isDisponible = new Date(product.disponibleDe) <= now && new Date(product.disponibleJusqua) >= now;
-                const images = await this.getProductImages(product.id);
-                const userInfo = await this.getUserByCodeGenerate(product.codeUsers);
+                const allimages = await this.getProductImages(product.id);
+                const userInfo = await this.getUserByCodeGenerate(code);
 
                 return {
                     ...product,
                     statut: isDisponible ? 'disponible' : 'indisponible',
-                    images,
+                    allimages,
                     userInfo,
                 };
             }),
@@ -577,7 +844,7 @@ export class ProductService {
         // Récupère les produits de ce code producteur (codeUsers)
         const userProducts = await this.prisma.product.findMany({
             where: {
-                codeUsers: code,
+                codeUsers: code+"#",
             },
             select: {
                 id: true,
@@ -591,13 +858,13 @@ export class ProductService {
             // Nombre total de produits liés au code
             this.prisma.product.count({
                 where: {
-                    codeUsers: code,
+                    codeUsers: code+"#",
                 },
             }),
             // Somme des quantités (champ quantite)
             this.prisma.product.aggregate({
                 where: {
-                    codeUsers: code,
+                    codeUsers: code+"#",
                 },
                 _sum: {
                     quantite: true,
@@ -680,12 +947,5 @@ export class ProductService {
             totalSoldProducts: totalSold._sum.quantity || 0,
         });
     }
-
-
-
-
-
-
-
 
 }

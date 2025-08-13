@@ -9,6 +9,7 @@ import { PaginationParamsDto } from 'src/dto/request/pagination-params.dto';
 import { ControlEnrollementDto } from 'src/dto/request/control-enrollement.dto';
 import { CreateProductDto, UpdateProductDto } from 'src/dto/request/product.dto';
 import { ProductService } from './product.service';
+import { MarketProduitFilterDto } from 'src/dto/request/marketProduitFilter.dto';
 
 
 @ApiTags('Product Api')
@@ -93,6 +94,15 @@ export class ProductController {
         return this.productService.getAllProductsWithStatus(params);
     }
 
+    // geProduitstById
+
+    @Get('get-produit/:id')
+    @ApiOperation({ summary: 'Récupérer un produit par ID' })
+    @ApiResponse({ status: 200, description: 'Produit trouvé.' })
+    async geProduitstById(@Param('id') id: string) {
+        return this.productService.geProduitstById(id);
+    }
+
     @UseGuards(JwtAuthGuard)
     @Get('all/produits-admin')
     @ApiOperation({ summary: 'Liste paginée de tous les produits admin' })
@@ -104,16 +114,18 @@ export class ProductController {
     }
 
     @UseGuards(JwtAuthGuard)
-    @Get('produit-produiteur/:code')
+    @Get('donnees/produit-produiteur')
     @ApiOperation({ summary: 'Liste paginée des produits produit produit' })
     @ApiQuery({ name: 'page', required: false, type: Number, example: 1 })
     @ApiQuery({ name: 'limit', required: false, type: Number, example: 10 })
     @ApiResponse({ status: 200, description: 'Liste des produits récupérée avec succès.' })
-    async getProducteurProductsByCode(@Param('code') code: string, @Query() params: PaginationParamsDto) {
+    async getProducteurProductsByCode(
+        @Query() params: PaginationParamsDto,
+        @Query('code') code: string,  ) {
         return this.productService.getProducteurProductsByCode(code, params);
     }
 
-    @Get('produit-produiteur/:code/stats')
+    @Get('produit-produiteur/statistiques/:code')
     @ApiOperation({ summary: 'Statistiques des produits produit produit' })
     @ApiResponse({ status: 200, description: 'Statistiques des produits produit produit récupérée avec succès.' })
     async getProducteurProductStats(@Param('code') code: string) {
@@ -127,6 +139,17 @@ export class ProductController {
         return this.productService.getGlobalProductStats();
     }
 
+    // filterProductsWithStatus
+    @Post('filter-produits-with-status')
+    @ApiOperation({ summary: 'Filtrer les produits par statut, période, découpage géographique, activité, spéculation, etc.' })
+    @ApiResponse({ status: 200, description: 'Liste des produits filtrés.' })
+    @ApiQuery({ name: 'page', required: false, type: Number, example: 1 })
+    @ApiQuery({ name: 'limit', required: false, type: Number, example: 10 })
+    async filterProductsWithStatus(
+        @Body() dto: MarketProduitFilterDto,
+        @Query() params: PaginationParamsDto) {
+        return this.productService.filterProductsWithStatus( dto, params);
+    }
 
 
 }

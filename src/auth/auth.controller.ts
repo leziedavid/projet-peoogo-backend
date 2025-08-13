@@ -17,6 +17,7 @@ import { UpdateProfileDto } from 'src/dto/request/update-profile.dto';
 import { LoginWithCodeDto } from 'src/dto/request/login-code.dto';
 import { LoginWithPhoneDto } from 'src/dto/request/login-phone.dto';
 import { FilterUserDto } from 'src/dto/request/filter-user.dto';
+import { LoginByPhoneCode } from 'src/dto/request/LoginByPhoneCode.dto';
 
 
 @ApiTags('Auth Api')
@@ -76,6 +77,16 @@ export class AuthController {
     async login(@Body() dto: LoginDto) {
         return this.authService.login(dto);
     }
+    
+    @Post('login/by/code/or/phone')
+    @ApiOperation({ summary: 'Connexion utilisateur' })
+    @ApiBody({ type: LoginDto })
+    @ApiResponse({ status: 200, description: 'Utilisateur connecté avec succès.' })
+    @ApiResponse({ status: 401, description: 'Identifiants invalides.' })
+    async loginByPhone(@Body() dto: LoginByPhoneCode) {
+        return this.authService.loginByPhoneCode(dto);
+    }
+
     @Post('login/code')
     @ApiOperation({ summary: 'Connexion utilisateur via un code (agent enrôleur)' })
     @ApiBody({ type: LoginWithCodeDto })

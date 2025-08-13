@@ -1,5 +1,5 @@
 import { ApiPropertyOptional } from '@nestjs/swagger';
-import { IsOptional, IsString, IsUUID } from 'class-validator';
+import { IsDateString, IsOptional, IsString, IsUUID } from 'class-validator';
 
 export class FilterDto {
     @ApiPropertyOptional({ example: 'en-cours', description: 'Statut du dossier (ex: en-cours, validé, rejeté)' })
@@ -76,4 +76,25 @@ export class FilterDto {
     @IsOptional()
     @IsString()
     spculationprincipaleId?: string;
+
+    @ApiPropertyOptional({ description: 'Date de début de la période', example: '2024-01-01T00:00:00.000Z', type: String, format: 'date-time',})
+    @IsOptional()
+    @IsDateString()
+    startDate?: Date;
+
+    @ApiPropertyOptional({ description: 'Date de fin de la période', example: '2024-12-31T23:59:59.000Z',type: String,format: 'date-time',})
+    @IsOptional()
+    @IsDateString()
+    endDate?: Date;
+
+    @ApiPropertyOptional({ description: "ID de l'agent enrôleur", example: 'uuid-agent-enroleur',})
+    @IsOptional()
+    @IsUUID()
+    agentEnroleurId?: string;
+    
+    @ApiPropertyOptional({ description: "ID de l'agent contrôleur",example: 'uuid-agent-controle',})
+    @IsOptional()
+    @IsUUID()
+    agentControlId?: string;
+
 }

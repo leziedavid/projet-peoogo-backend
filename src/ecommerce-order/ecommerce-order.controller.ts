@@ -65,6 +65,18 @@ export class EcommerceOrderController {
     }
 
     @UseGuards(JwtAuthGuard)
+    @Get('user/me/history/by-user')
+    @ApiOperation({ summary: 'Récupérer les commandes de l’utilisateur connecté' })
+    @ApiResponse({ status: 200, description: 'Commandes récupérées avec succès.' })
+    @ApiResponse({ status: 404, description: 'Commande introuvable.' })
+    @ApiQuery({ name: 'page', required: false, type: Number })
+    @ApiQuery({ name: 'limit', required: false, type: Number })
+    async getOrdersHistoryByUserId(@Req() req: Request, @Query() pagination: PaginationParamsDto) {
+        const user = req.user as any;
+        return this.ecommerceOrderService.getOrdersHistoryByUserId(user.userId, pagination);
+    }
+
+    @UseGuards(JwtAuthGuard)
     @Get('creator/orders/me')
     @ApiOperation({ summary: 'Commandes contenant des produits créés par l’utilisateur connecté' })
     @ApiResponse({ status: 200, description: 'Commandes récupérées avec succès.' })

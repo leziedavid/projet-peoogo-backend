@@ -1,8 +1,9 @@
-import { Controller, Get, Patch, Delete, Param, Body, UseGuards } from '@nestjs/common';
-import { ApiTags, ApiBearerAuth, ApiOperation } from '@nestjs/swagger';
+import { Controller, Get, Patch, Delete, Param, Body, UseGuards, Query } from '@nestjs/common';
+import { ApiTags, ApiBearerAuth, ApiOperation, ApiQuery } from '@nestjs/swagger';
 import { RegionService } from './region.service';
 import { UpdateRegionDto } from 'src/dto/request/region.dto';
 import { JwtAuthGuard } from 'src/guards/jwt-auth.guard';
+import { PaginationParamsDto } from 'src/dto/request/pagination-params.dto';
 
 @ApiTags('Regions')
 @ApiBearerAuth('access-token')
@@ -37,4 +38,14 @@ export class RegionController {
     async remove(@Param('id') id: string) {
         return this.regionService.remove(id);
     }
+
+    @Get('paginate/liste/all')
+    @ApiOperation({ summary: 'Liste paginée des régions' })
+    @ApiQuery({ name: 'page', required: false, type: Number, example: 1 })
+    @ApiQuery({ name: 'limit', required: false, type: Number, example: 10 })
+    async getAllparginate(@Query() params: PaginationParamsDto) {
+        return this.regionService.getAllparginate(params.page, params.limit);
+    }
+
+
 }

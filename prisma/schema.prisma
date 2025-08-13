@@ -39,6 +39,8 @@ enum TypeCompte {
   REVENDEUR
   TRANSFORMATEUR
   ACHETEUR
+  RELAIS
+  SUPPERVISEUR
 }
 
 enum NiveauInstruction {
@@ -120,11 +122,19 @@ enum DeliveryMethod {
   DROP
 }
 
+
+// Type de message
+enum MessageSender {
+  user
+  support
+}
+
+
 // TABLES
 model District {
   id         String      @id @default(uuid())
   nom        String
-  statut     Boolean?
+  statut Boolean? @default(true)
   regions    Region[]
   decoupages Decoupage[]
 }
@@ -132,7 +142,7 @@ model District {
 model Region {
   id           String      @id @default(uuid())
   nom          String
-  statut       Boolean?
+  statut Boolean? @default(true)
   districtId   String
   district     District   @relation(fields: [districtId], references: [id])
   departments  Department[]
@@ -142,6 +152,7 @@ model Region {
 model Department {
   id          String      @id @default(uuid())
   nom         String
+  statut Boolean? @default(true)
   regionId    String
   region      Region      @relation(fields: [regionId], references: [id])
   sousPrefectures SousPrefecture[]
@@ -151,6 +162,7 @@ model Department {
 model SousPrefecture {
   id            String       @id @default(uuid())
   nom           String
+  statut Boolean? @default(true)
   departmentId  String
   department    Department   @relation(fields: [departmentId], references: [id])
   localites     Localite[]
@@ -160,6 +172,7 @@ model SousPrefecture {
 model Localite {
   id                String          @id @default(uuid())
   nom               String
+  statut Boolean? @default(true)
   sousPrefectureId String
   sousPrefecture    SousPrefecture @relation(fields: [sousPrefectureId], references: [id])
   decoupages        Decoupage[]
@@ -207,6 +220,7 @@ model User {
   // Transactions
   transactions         Transaction[]
   notifications      Notification[]
+  messagesSent Message[] @relation("UserMessages")
 }
 
 model Wallet {
@@ -417,4 +431,26 @@ model Notification {
   createdAt   DateTime           @default(now())
   updatedAt   DateTime           @default(now()) @updatedAt
 }
+
+
+model Message {
+  id        String        @id @default(uuid()) // UUID comme identifiant principal
+  text      String?
+  imageUrl  String?
+  timestamp DateTime      @default(now())
+  sender    MessageSender
+
+  senderId   String
+  senderUser User   @relation("UserMessages", fields: [senderId], references: [id])
+
+  repliedToId String? // doit être String pour matcher l'id de Message
+  repliedTo   Message?  @relation("ReplyTo", fields: [repliedToId], references: [id])
+  replies     Message[] @relation("ReplyTo")
+
+  lastOrderId String? // UUID d'un Trip, EcommerceOrder ou Delivery (nullable)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
 

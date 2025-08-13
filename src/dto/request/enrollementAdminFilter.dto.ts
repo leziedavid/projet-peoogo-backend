@@ -2,6 +2,7 @@ import { ApiPropertyOptional } from '@nestjs/swagger';
 import { IsOptional, IsUUID, IsDateString } from 'class-validator';
 
 export class EnrollementAdminFilterDto {
+    
     @ApiPropertyOptional({
         description: 'Date de début de la période',
         example: '2024-01-01T00:00:00.000Z',

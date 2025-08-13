@@ -141,8 +141,27 @@ export class EnrollementsService {
     }
 
     private generateCodes(): string {
-        return `ENROLEMENT ${Math.floor(Math.random() * 1000000000000)}`; // Exemple de génération de numéro unique
+        const randomNumber = Math.floor(1000 + Math.random() * 9000); // Nombre aléatoire entre 1000 et 9999
+        return `ENR${randomNumber}#`;
     }
+
+    private emptyPaginateResult(page: number, limit: number) {
+        return {
+            status: true,
+            total: 0,
+            page,
+            limit,
+            data: [],
+        };
+    }
+
+
+    private generateNumerolot(): string {
+    // Génère un nombre aléatoire à 10 chiffres
+    const code = Math.floor(1000000000 + Math.random() * 9000000000); // entre 1000000000 et 9999999999
+    return code.toString();
+}
+
 
     async addNewAutresActivites(
         prisma: PrismaClient,
@@ -215,6 +234,7 @@ export class EnrollementsService {
 
             // Extraire decoupage du dto
             const { typeCompte, decoupage, photo, photo_document_1, photo_document_2,autresactivite,autresspeculation, ...dataWithoutFiles } = dto;
+            console.log('photo ok :', photo);
 
             const autresactiviteParsed = this.parseStringOrArray<string>(autresactivite);
             const autresspeculationParsed = this.parseStringOrArray<string>(autresspeculation);
@@ -284,15 +304,15 @@ export class EnrollementsService {
 
             // Upload des fichiers un par un
             if (photo) {
-                await this.uploadAndSaveSingleFile(enrollement.id, photo, 'enrollements_photo', 'enrollements');
+                await this.uploadAndSaveSingleFile(enrollement.id, photo.buffer, 'enrollements_photo', 'enrollements');
             }
 
             if (photo_document_1) {
-                await this.uploadAndSaveSingleFile(enrollement.id, photo_document_1, 'enrollements_photo_document_1', 'enrollements');
+                await this.uploadAndSaveSingleFile(enrollement.id, photo_document_1.buffer, 'enrollements_photo_document_1', 'enrollements');
             }
 
             if (photo_document_2) {
-                await this.uploadAndSaveSingleFile(enrollement.id, photo_document_2, 'enrollements_photo_document_2', 'enrollements');
+                await this.uploadAndSaveSingleFile(enrollement.id, photo_document_2.buffer, 'enrollements_photo_document_2', 'enrollements');
             }
 
             return new BaseResponse(201, 'Enrollement créé', 'enrollement');
@@ -461,7 +481,209 @@ export class EnrollementsService {
         }
     }
 
-    async getAllPaginate(params: PaginationParamsDto): Promise<BaseResponse<any>> {
+
+    async assignLotIfNeeded(userId: string, params: PaginationParamsDto): Promise<BaseResponse<any>> {
+        const { page, limit } = params;
+
+        // Étape 1 : Vérifier si l'utilisateur a déjà un lot attribué
+        const hasExistingLot = await this.prisma.enrollements.findFirst({
+            where: {
+                user_control_id: userId,
+                is_deleted: false,
+                status_dossier:'NON_TRAITE',
+            },
+        });
+
+        // Étape 2 : Si aucun lot, attribuer un nouveau lot de 50 lignes
+        if (!hasExistingLot) {
+            const enrollementsToAssign = await this.prisma.enrollements.findMany({
+                where: {
+                    user_control_id: null,
+                    is_deleted: false,
+                    status_dossier: {
+                        in: ['NON_TRAITE', 'ENCOURS'],
+                    },
+                },
+                take: 50,
+                orderBy: {
+                    createdAt: 'asc',
+                },
+            });
+
+
+            if (enrollementsToAssign.length === 0) {
+                return new BaseResponse( 200, 'Aucun enrôlement disponible pour attribution',  this.emptyPaginateResult(page, limit),  );
+            }
+
+            const numeroLot = this.generateNumerolot();
+
+            // Préparer les mises à jour avec code généré
+            await Promise.all(
+                enrollementsToAssign.map(async (enrollement) => {
+                    await this.prisma.enrollements.update({
+                        where: { id: enrollement.id },
+                        data: {
+                            user_control_id: userId,
+                            numero_lot: numeroLot,
+                        },
+                    });
+                })
+            );
+        }
+
+        // Étape 3 : Récupérer les enrôlements paginés avec enrichissement complet
+        const data = await this.functionService.paginate({
+            model: 'Enrollements',
+            page: Number(page),
+            limit: Number(limit),
+            conditions: {
+                is_deleted: false,
+                user_control_id: userId,
+                status_dossier:'NON_TRAITE',
+            },
+            selectAndInclude: {
+                select: null,
+                include: {
+                    agent_enroleur: true,
+                    agent_superviseur: true,
+                    user_control: true,
+                    decoupage: {
+                        include: {
+                            district: true,
+                            region: true,
+                            department: true,
+                            sousPrefecture: true,
+                            localite: true,
+                        },
+                    },
+                    activitprincipale: true,
+                    spculationprincipale: true,
+                    autresActivites: {
+                        include: {
+                            activite: true,
+                        },
+                    },
+                    autresSpeculations: {
+                        include: {
+                            speculation: true,
+                        },
+                    },
+                },
+            },
+            orderBy: { createdAt: 'desc' },
+        });
+
+        const enrichedEnrollements = await Promise.all(
+            data.data.map(async (enrollement) => {
+                const [photo, document1, document2] = await Promise.all([
+                    this.prisma.fileManager.findFirst({
+                        where: { targetId: enrollement.id, fileType: 'enrollements_photo' },
+                        orderBy: { createdAt: 'desc' },
+                    }),
+                    this.prisma.fileManager.findFirst({
+                        where: { targetId: enrollement.id, fileType: 'enrollements_photo_document_1' },
+                        orderBy: { createdAt: 'desc' },
+                    }),
+                    this.prisma.fileManager.findFirst({
+                        where: { targetId: enrollement.id, fileType: 'enrollements_photo_document_2' },
+                        orderBy: { createdAt: 'desc' },
+                    }),
+                ]);
+
+                return {
+                    ...enrollement,
+                    photo: photo?.fileUrl || null,
+                    document1: document1?.fileUrl || null,
+                    document2: document2?.fileUrl || null,
+                };
+            })
+        );
+
+        return new BaseResponse(200, 'Lot attribué ou déjà existant', {
+            ...data,
+            data: enrichedEnrollements,
+            numero_lot: enrichedEnrollements[0]?.numero_lot || null,
+        });
+    }
+
+
+    async getPaginatedByAgent(agentId: string, params: PaginationParamsDto): Promise<BaseResponse<any>> {
+        const { page, limit } = params;
+
+        const data = await this.functionService.paginate({
+            model: 'Enrollements',
+            page: Number(page),
+            limit: Number(limit),
+            conditions: {
+                is_deleted: false,
+                agent_id: agentId,       // Filtre ici par agent_id
+            },
+            selectAndInclude: {
+                select: null,
+                include: {
+                    agent_enroleur: true,
+                    agent_superviseur: true,
+                    user_control: true,
+                    decoupage: {
+                        include: {
+                            district: true,
+                            region: true,
+                            department: true,
+                            sousPrefecture: true,
+                            localite: true,
+                        },
+                    },
+                    activitprincipale: true,
+                    spculationprincipale: true,
+                    autresActivites: {
+                        include: {
+                            activite: true,
+                        },
+                    },
+                    autresSpeculations: {
+                        include: {
+                            speculation: true,
+                        },
+                    },
+                },
+            },
+            orderBy: { createdAt: 'desc' },
+        });
+
+        const enrichedEnrollements = await Promise.all(
+            data.data.map(async (enrollement) => {
+                const [photo, document1, document2] = await Promise.all([
+                    this.prisma.fileManager.findFirst({
+                        where: { targetId: enrollement.id, fileType: 'enrollements_photo' },
+                        orderBy: { createdAt: 'desc' },
+                    }),
+                    this.prisma.fileManager.findFirst({
+                        where: { targetId: enrollement.id, fileType: 'enrollements_photo_document_1' },
+                        orderBy: { createdAt: 'desc' },
+                    }),
+                    this.prisma.fileManager.findFirst({
+                        where: { targetId: enrollement.id, fileType: 'enrollements_photo_document_2' },
+                        orderBy: { createdAt: 'desc' },
+                    }),
+                ]);
+
+                return {
+                    ...enrollement,
+                    photo: photo?.fileUrl || null,
+                    document1: document1?.fileUrl || null,
+                    document2: document2?.fileUrl || null,
+                };
+            })
+        );
+
+        return new BaseResponse(200, `Liste paginée des enrôlements pour l'agent ${agentId}`, {
+            ...data,
+            data: enrichedEnrollements,
+        });
+    }
+
+
+    async getAllPaginateOne(userId: string,params: PaginationParamsDto): Promise<BaseResponse<any>> {
         const { page, limit } = params;
 
         const data = await this.functionService.paginate({
@@ -534,8 +756,8 @@ export class EnrollementsService {
     }
 
     // get by agent conttrole
-    async getStatistiquesControle(userId: string): Promise<BaseResponse<any>> {
-        // Tableau des statuts à compter
+
+    async getStatistiquesControle(userId: string, numero_lot?: string): Promise<BaseResponse<any>> {
         const statuses = [
             StatusDossier.VAL,
             StatusDossier.NON_TRAITE,
@@ -547,20 +769,29 @@ export class EnrollementsService {
             StatusDossier.DOUBLON_NUMBER,
         ];
 
-        // Exécuter un count par statut en parallèle
+        // Construction dynamique de la clause where
+        const baseWhere = {
+            is_deleted: false,
+            user_control_id: userId,
+        };
+
+        // Si numero_lot existe et n'est pas vide, on ajoute le filtre
+        if (numero_lot && numero_lot.trim() !== '') {
+            Object.assign(baseWhere, { numero_lot });
+        }
+
+        // Exécuter un count par statut en parallèle avec le where dynamique
         const counts = await Promise.all(
             statuses.map((status) =>
                 this.prisma.enrollements.count({
                     where: {
-                        is_deleted: false,
-                        user_control_id: userId,
+                        ...baseWhere,
                         status_dossier: status,
                     },
                 })
             )
         );
 
-        // Construire un objet avec chaque statut et son total
         const statsByStatus = statuses.reduce((acc, status, idx) => {
             acc[status.toLowerCase()] = counts[idx];
             return acc;
@@ -600,10 +831,98 @@ export class EnrollementsService {
         });
     }
 
-    async getStatsAdmin(filters: EnrollementAdminFilterDto): Promise<BaseResponse<any>> {
-        const hasFilters =
-            filters &&
-            Object.values(filters).some((value) => value !== undefined && value !== null && value !== '');
+    async getStatsAdmin(filters: FilterDto): Promise<BaseResponse<any>> {
+        const hasFilters = filters && Object.values(filters).some((value) => value !== undefined && value !== null && value !== '');
+
+        let whereClause: any = { is_deleted: false };
+
+        if (hasFilters) {
+            const {
+                startDate,
+                endDate,
+                agentEnroleurId,
+                agentControlId,
+                districtId,
+                regionId,
+                departmentId,
+                sousPrefectureId,
+                localiteId,
+                activitprincipaleId,
+                spculationprincipaleId,
+                statutDossier,
+                typeActeur,
+                heureDebutEnrolement,
+                heureFinEnrolement,
+            } = filters;
+
+            // Dates
+            if (startDate && endDate) {
+                whereClause.createdAt = { gte: startDate, lte: endDate };
+            }
+
+            // Agents
+            if (agentEnroleurId) whereClause.agent_id = agentEnroleurId;
+            if (agentControlId) whereClause.user_control_id = agentControlId;
+
+            // Découpage dynamique
+            if (districtId || regionId || departmentId || sousPrefectureId || localiteId) {
+                whereClause.decoupage = {};
+                if (districtId) whereClause.decoupage.districtId = districtId;
+                if (regionId) whereClause.decoupage.regionId = regionId;
+                if (departmentId) whereClause.decoupage.departmentId = departmentId;
+                if (sousPrefectureId) whereClause.decoupage.sousPrefectureId = sousPrefectureId;
+                if (localiteId) whereClause.decoupage.localiteId = localiteId;
+            }
+
+            // Activités
+            if (activitprincipaleId) whereClause.activitprincipaleId = activitprincipaleId;
+            if (spculationprincipaleId) whereClause.spculationprincipaleId = spculationprincipaleId;
+
+            // Statut dossier
+            if (statutDossier) whereClause.status_dossier = statutDossier;
+
+            // Type d'acteur
+            if (typeActeur) whereClause.TypeCompte = typeActeur;
+
+            // Heure d'enrôlement (intervalle d'heures)
+            if (heureDebutEnrolement && heureFinEnrolement) {
+                whereClause.time_enrolment = {
+                    gte: heureDebutEnrolement,
+                    lte: heureFinEnrolement,
+                };
+            }
+        }
+
+        const statuses = [
+            StatusDossier.VAL,
+            StatusDossier.NON_TRAITE,
+            StatusDossier.REJ,
+            StatusDossier.DOUBLON,
+            StatusDossier.ENCOURS,
+            StatusDossier.DEL,
+            StatusDossier.IMAGE_INCOR,
+            StatusDossier.DOUBLON_NUMBER,
+        ];
+
+        const counts = await Promise.all(
+            statuses.map((status) =>
+                this.prisma.enrollements.count({
+                    where: { ...whereClause, status_dossier: status },
+                })
+            )
+        );
+
+        const statsByStatus = statuses.reduce((acc, status, idx) => {
+            acc[status.toLowerCase()] = counts[idx];
+            return acc;
+        }, {} as Record<string, number>);
+
+        return new BaseResponse(200, 'Statistiques des enrôlements (admin)', statsByStatus);
+    }
+
+    async getStatsAdminOne(filters: EnrollementAdminFilterDto): Promise<BaseResponse<any>> {
+
+        const hasFilters = filters && Object.values(filters).some((value) => value !== undefined && value !== null && value !== '');
 
         let whereClause: any = { is_deleted: false };
 
@@ -714,7 +1033,6 @@ export class EnrollementsService {
         });
     }
 
-
     // filtres generale
 
     async enrollementFilter(filters: FilterDto, params: PaginationParamsDto): Promise<BaseResponse<any>> {
@@ -739,8 +1057,6 @@ export class EnrollementsService {
         if (filters.statutDossier) where.status_dossier = filters.statutDossier;
         if (filters.typeActeur) where.TypeCompte = filters.typeActeur;
         if (filters.heureDebutEnrolement) where.time_enrolment = { $gte: filters.heureDebutEnrolement, $lte: filters.heureFinEnrolement };
-
-
 
         // Cas modeAffichage = tableau
         if (modeAffichage === 'tableau') {
