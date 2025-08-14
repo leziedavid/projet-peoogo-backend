@@ -19,7 +19,7 @@ import { NotificationService } from 'src/utils/notification';
             console.log('JWT_SECRET from ConfigService:', config.get<string>('JWT_SECRET'));
             return {
               secret: config.get<string>('JWT_SECRET'),
-              signOptions: { expiresIn: config.get<string>('JWT_EXPIRE') || '1d' },
+              signOptions: { expiresIn: config.get<string>('JWT_EXPIRE') || '3d' },
             };
           }
         }),

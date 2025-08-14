@@ -20,6 +20,8 @@ import { DepartmentModule } from './department/department.module';
 import { SousPrefectureModule } from './sous-prefecture/sous-prefecture.module';
 import { LocaliteModule } from './localite/localite.module';
 import { ProductModule } from './product/product.module';
+import { MessageModule } from './message/message.module';
+import { StatistiqueModule } from './statistique/statistique.module';
 
 @Module({
   imports: [
@@ -42,6 +44,9 @@ import { ProductModule } from './product/product.module';
     SousPrefectureModule,
     LocaliteModule,
     ProductModule,
+    MessageModule,
+    StatistiqueModule,
+    
   ],
 })
 export class AppModule {}

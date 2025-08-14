@@ -1,6 +1,6 @@
 import { ApiPropertyOptional } from '@nestjs/swagger';
 import { IsOptional, IsString, MinLength, IsEnum } from 'class-validator';
-import { Role, UserStatus } from '@prisma/client';
+import { Role, TypeCompte, UserStatus } from '@prisma/client';
 
 export class UpdateUserDto {
     @ApiPropertyOptional({ example: 'John Doe', description: 'Nouveau nom' })
@@ -23,6 +23,12 @@ export class UpdateUserDto {
     @IsOptional()
     @IsEnum(UserStatus)
     status?: UserStatus;
+    // typeCompte
+
+    @ApiPropertyOptional({ enum: TypeCompte, example: TypeCompte.UTILISATEUR, description: 'Nouveau type de compte' })
+    @IsOptional()
+    @IsEnum(TypeCompte)
+    typeCompte?: TypeCompte;
 
     @ApiPropertyOptional({ example: '+225', description: 'Code pays du téléphone (optionnel)' })
     @IsOptional()

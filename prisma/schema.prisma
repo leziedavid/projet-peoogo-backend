@@ -41,6 +41,8 @@ enum TypeCompte {
   ACHETEUR
   RELAIS
   SUPPERVISEUR
+  UTILISATEUR
+  ADMINISTRATEUR
 }
 
 enum NiveauInstruction {
@@ -435,11 +437,11 @@ model Notification {
 
 model Message {
   id        String        @id @default(uuid()) // UUID comme identifiant principal
+  label     String?
   text      String?
   imageUrl  String?
   timestamp DateTime      @default(now())
   sender    MessageSender
-
   senderId   String
   senderUser User   @relation("UserMessages", fields: [senderId], references: [id])
 

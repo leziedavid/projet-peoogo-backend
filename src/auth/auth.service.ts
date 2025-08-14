@@ -127,7 +127,6 @@ export class AuthService {
             : await this.prisma.user.findUnique({ where: { phoneNumber: dto.login } });
 
         if (!user) throw new UnauthorizedException('Utilisateur non trouvé');
-        console.log('🚀 User:', user);
         
         const ok = await bcrypt.compare(dto.password, user.password);
         if (!ok) throw new UnauthorizedException('Mot de passe incorrect');
@@ -197,7 +196,10 @@ export class AuthService {
         if (dto.password) data.password = await bcrypt.hash(dto.password, 10);
         if (dto.role) data.role = dto.role;
         if (dto.status) data.status = dto.status;
-
+        if (dto.typeCompte) data.typeCompte = dto.typeCompte;
+        if (dto.phoneCountryCode) data.phoneCountryCode = dto.phoneCountryCode;
+        if (dto.phoneNumber) data.phoneNumber = dto.phoneNumber;
+        
         const updated = await this.prisma.user.update({ where: { id }, data });
 
         // 🔁 Fonction réutilisable pour chaque type de fichier
@@ -234,13 +236,6 @@ export class AuthService {
                 await handleFileUpdate(dto.file.buffer, 'userFiles');
             }
 
-            if (dto.carte) {
-                await handleFileUpdate(dto.carte.buffer, 'userCarte');
-            }
-
-            if (dto.permis) {
-                await handleFileUpdate(dto.permis.buffer, 'userPermis');
-            }
         } catch (err) {
             throw new InternalServerErrorException("Erreur lors de la mise à jour d’un fichier utilisateur");
         }
@@ -910,7 +905,7 @@ export class AuthService {
 
     async getUserEnrollementDataByCode(rawCode: string): Promise<BaseResponse<any>> {
         const cleanCode = rawCode.replace(/\s+/g, ''); // ⚠️ Supprimer tous les espaces
-        console.log('cleanCode:', cleanCode+"#");
+
         // Rechercher l'utilisateur avec un codeGenerate nettoyé
         const user = await this.prisma.user.findFirst({
             where: {
@@ -925,7 +920,7 @@ export class AuthService {
         });
 
         if (!user) throw new NotFoundException('Utilisateur non trouvé avec ce code');
-        console.log('user:', user);
+
         // Rechercher l’enrollement avec un code (nettoyé)
         const enrollement = await this.prisma.enrollements.findFirst({
             where: {

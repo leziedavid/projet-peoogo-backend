@@ -1,16 +1,16 @@
 import { Module } from '@nestjs/common';
-import { AuthController } from './auth.controller';
-import { AuthService } from './auth.service';
+import { StatistiqueController } from './statistique.controller';
+import { StatistiqueService } from './statistique.service';
+import { ConfigModule, ConfigService } from '@nestjs/config';
 import { JwtModule } from '@nestjs/jwt';
-import { PassportModule } from '@nestjs/passport';       // <-- Ajouté
-import { CloudinaryService } from 'src/utils/cloudinary.service';
+import { PassportModule } from '@nestjs/passport';
 import { PrismaModule } from 'src/prisma/prisma.module';
 import { JwtStrategy } from 'src/strategies/jwt.strategy';
-import { ConfigModule, ConfigService } from '@nestjs/config';
 import { FunctionService } from 'src/utils/pagination.service';
-    
+
 @Module({
-    imports: [
+
+  imports: [
     ConfigModule, // 👈 pour injection locale (non nécessaire si global)
     JwtModule.registerAsync({
       imports: [ConfigModule],
@@ -26,9 +26,7 @@ import { FunctionService } from 'src/utils/pagination.service';
     PassportModule.register({ defaultStrategy: 'jwt' }),
     PrismaModule,
   ],
-  
-  controllers: [AuthController],
-  providers: [AuthService, CloudinaryService, JwtStrategy,FunctionService],  // <-- JwtStrategy ajouté ici
-  exports: [PassportModule, JwtModule],                       // <-- exporter pour pouvoir utiliser JwtAuthGuard ailleurs
+  controllers: [StatistiqueController],
+  providers: [StatistiqueService, JwtStrategy, FunctionService]
 })
-export class AuthModule { }
+export class StatistiqueModule { }

@@ -1,12 +1,13 @@
 import { Injectable, NotFoundException, BadRequestException, InternalServerErrorException, ForbiddenException, } from '@nestjs/common';
 import { PrismaService } from 'src/prisma/prisma.service';
-import { OderPaiementStatus, OrderStatus, Prisma } from '@prisma/client';
+import { EcommerceOrderItem, OderPaiementStatus, OrderStatus, Prisma } from '@prisma/client';
 import { CreateEcommerceOrderDto } from 'src/dto/request/ecommerce-order.dto';
 import { BaseResponse } from 'src/dto/request/base-response.dto';
 import { PaginationParamsDto } from 'src/dto/request/pagination-params.dto';
 import { FunctionService, PaginateOptions } from 'src/utils/pagination.service';
 import { startOfMonth, endOfMonth, format } from 'date-fns';
 import { use } from 'passport';
+import { EnrichedProducer } from 'src/interface/EnrichedProducer';
 
 
 @Injectable()
@@ -202,7 +203,7 @@ export class EcommerceOrderService {
     }
 
 
-    async getAllOrders(params: PaginationParamsDto): Promise<BaseResponse<any>> {
+    async getAllOrdersOne(params: PaginationParamsDto): Promise<BaseResponse<any>> {
         const options: PaginateOptions = {
             model: 'EcommerceOrder',
             page: Number(params.page),
@@ -272,8 +273,6 @@ export class EcommerceOrderService {
         const data = await this.functionService.paginate(options);
         return new BaseResponse(200, 'Commandes utilisateur paginées', data);
     }
-
-
 
     async getOrdersByProductCreator(creatorId: string, params: PaginationParamsDto): Promise<BaseResponse<any>> {
         const options: PaginateOptions = {
@@ -411,6 +410,97 @@ export class EcommerceOrderService {
             revenue: revenueData,
         });
     }
+
+
+    // --- Exemple de méthode publique ---
+    async getAllOrdersWithProducers(params: PaginationParamsDto): Promise<BaseResponse<any>> {
+        const options: PaginateOptions = {
+            model: 'EcommerceOrder',
+            page: Number(params.page),
+            limit: Number(params.limit),
+            orderBy: { createdAt: 'desc' },
+            selectAndInclude: {
+                include: {
+                    user: true,
+                    items: {
+                        include: {
+                            product: {
+                                include: {
+                                    addedBy: true,
+                                },
+                            },
+                        },
+                    },
+                },
+                select: null,
+            },
+        };
+
+        const data = await this.functionService.paginate(options);
+
+        // Enrichir chaque commande
+        for (const order of data.data) {
+            await this.enrichOrderItems(order.items);
+        }
+
+        return new BaseResponse(200, 'Liste paginée des commandes avec producteurs', data);
+    }
+
+    /**
+     * Enrichit les items d'une commande avec le producteur réel et ses stats
+     */
+    private async enrichOrderItems(items: (EcommerceOrderItem & { product?: any })[]) {
+        const producerCache: Record<string, EnrichedProducer> = {};
+
+        for (const item of items) {
+            const product = item.product;
+            if (!product || !product.codeUsers) continue;
+
+            const producer = await this.getProducer(product.codeUsers, producerCache);
+
+            this.addItemStatsToProducer(producer, item);
+
+            product.producer = producer;
+        }
+    }
+
+    /**
+     * Récupère le producteur réel via codeUsers
+     */
+    private async getProducer(codeUsers: string, cache: Record<string, EnrichedProducer>): Promise<EnrichedProducer> {
+        if (!cache[codeUsers]) {
+            const producer = await this.prisma.user.findFirst({
+                where: { codeGenerate: codeUsers } as Prisma.UserWhereUniqueInput,
+                select: {
+                    id: true,
+                    name: true,
+                    phoneNumber: true,
+                    typeCompte: true,
+                },
+            });
+
+            if (!producer) {
+                throw new NotFoundException(`Producteur avec code ${codeUsers} introuvable`);
+            }
+
+            cache[codeUsers] = {
+                ...producer,
+                totalQuantity: 0,
+                totalAmount: 0,
+            };
+        }
+
+        return cache[codeUsers];
+    }
+
+    /**
+     * Ajoute les stats d'un item à un producteur enrichi
+     */
+    private addItemStatsToProducer(producer: EnrichedProducer, item: EcommerceOrderItem) {
+        producer.totalQuantity += item.quantity;
+        producer.totalAmount += item.quantity * item.prixUnitaire;
+    }
+
 
 
 }

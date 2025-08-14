@@ -10,6 +10,7 @@ import { ControlEnrollementDto } from 'src/dto/request/control-enrollement.dto';
 import { CreateProductDto, UpdateProductDto } from 'src/dto/request/product.dto';
 import { ProductService } from './product.service';
 import { MarketProduitFilterDto } from 'src/dto/request/marketProduitFilter.dto';
+import { UpdateAvailabilityDto, UpdateQuantityDto } from 'src/dto/request/updateAvailabilityQuantity.dto';
 
 
 @ApiTags('Product Api')
@@ -33,6 +34,31 @@ export class ProductController {
             dto.autreImage = files.autreImage ?? null;
             const user = req.user as any;
             return this.productService.createProduct(dto, user.userId);
+    }
+
+    @UseGuards(JwtAuthGuard)
+    @Patch(':id/availability')
+    @ApiOperation({ summary: 'Mettre à jour la période de disponibilité d’un produit' })
+    @ApiResponse({ status: 200, description: 'Période de disponibilité mise à jour avec succès.' })
+    @ApiBody({ description: 'Période de disponibilité mise à jour', type: UpdateAvailabilityDto })
+    async updateAvailability(
+        @Param('id') id: string,
+        @Body('disponibleDe') disponibleDe: string,
+        @Body('disponibleJusqua') disponibleJusqua: string,
+    ) {
+        return this.productService.updateAvailability(id, disponibleDe, disponibleJusqua);
+    }
+
+    @UseGuards(JwtAuthGuard)
+    @Patch(':id/quantity/update')
+    @ApiOperation({ summary: 'Mettre à jour la quantité d’un produit' })
+    @ApiResponse({ status: 200, description: 'Quantité mise à jour avec succès.' })
+    @ApiBody({ description: 'Quantité mise à jour', type: UpdateQuantityDto })
+    async updateQuantity(
+        @Param('id') id: string,
+        @Body('quantite') quantite: number,
+    ) {
+        return this.productService.updateQuantity(id, quantite);
     }
 
     @UseGuards(JwtAuthGuard)
@@ -132,7 +158,7 @@ export class ProductController {
         return this.productService.getProducteurProductStats(code);
     }
 
-    @Get('produit-global')
+    @Get('produit-global-admin-all')
     @ApiOperation({ summary: 'Statistiques globales des produits produit produit' })
     @ApiResponse({ status: 200, description: 'Statistiques globales des produits produit produit récupérée avec succès.' })
     async getGlobalProductStats() {

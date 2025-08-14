@@ -38,7 +38,7 @@ export class EcommerceOrderController {
     @ApiQuery({ name: 'page', required: false, type: Number })
     @ApiQuery({ name: 'limit', required: false, type: Number })
     async getAll( @Query() pagination: PaginationParamsDto) {
-        return this.ecommerceOrderService.getAllOrders(pagination);
+        return this.ecommerceOrderService.getAllOrdersWithProducers(pagination);
     }
 
     @UseGuards(JwtAuthGuard)

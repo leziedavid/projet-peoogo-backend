@@ -190,6 +190,64 @@ export class ProductService {
         ];
     }
 
+    // Fonction pour récupérer un utilisateur valide selon codeGenerate et typeActeur
+    private async getValidUserByCode(rawCode: string): Promise<any | null> {
+        if (!rawCode || Number(rawCode) <= 0) return null;
+
+        const allowedTypes: TypeCompte[] = [
+            'AGRICULTEURS',
+            'AQUACULTEURS',
+            'AUTRE_ACTEURS',
+            'APICULTEURS',
+            'REVENDEUR',
+            'TRANSFORMATEUR',
+        ];
+
+        const cleanCode = rawCode.replace(/\s+/g, '');
+
+        // Recherche de l'utilisateur avec typeCompte autorisé
+        const user = await this.prisma.user.findFirst({
+            where: {
+                codeGenerate: {
+                    equals: cleanCode,
+                    mode: 'insensitive',
+                },
+                typeCompte: { in: allowedTypes },
+            },
+            include: {
+                wallet: true,
+            },
+        });
+
+        if (!user) return null;
+
+        // Recherche de l'enrôlement correspondant
+        const enrollement = await this.prisma.enrollements.findFirst({
+            where: {
+                code: {
+                    equals: cleanCode,
+                    mode: 'insensitive',
+                },
+            },
+        });
+
+        if (!enrollement) return null;
+
+        const fichiers = await this.getProductImages(user.id);
+
+        return {
+            id: user.id,
+            name: user.name,
+            email: user.email,
+            phoneNumber: user.phoneNumber,
+            wallet: user.wallet,
+            generatedCode: user.codeGenerate,
+            code: enrollement.code,
+            photo: fichiers[0] || null,
+            typeCompte: user.typeCompte,
+        };
+    }
+
     async createProduct(dto: CreateProductDto, userId: string): Promise<BaseResponse<{ productId: string }>> {
         const decoupages = await this.findDecoupageOrFail(dto.decoupage);
         const { image, autreImage, prixUnitaire, prixEnGros, quantite, decoupage, ...productData } = dto as any;
@@ -339,6 +397,46 @@ export class ProductService {
 
         return new BaseResponse(200, 'Produit mis à jour avec succès', null);
     }
+
+
+
+    // ✅ Mettre à jour la période de disponibilité
+    async updateAvailability(id: string,disponibleDe: string, disponibleJusqua: string): Promise<BaseResponse<{ productId: string }>> {
+        const product = await this.prisma.product.findUnique({ where: { id } });
+        if (!product) throw new NotFoundException('Produit non trouvé');
+
+        const updated = await this.prisma.product.update({
+            where: { id },
+            data: {
+                disponibleDe: new Date(disponibleDe),
+                disponibleJusqua: new Date(disponibleJusqua),
+            },
+        });
+
+        return new BaseResponse(
+            200,
+            'Période de disponibilité mise à jour avec succès',
+            { productId: updated.id }
+        );
+    }
+
+    // ✅ Mettre à jour la quantité
+    async updateQuantity( id: string, quantite: number): Promise<BaseResponse<{ productId: string }>> {
+        const product = await this.prisma.product.findUnique({ where: { id } });
+        if (!product) throw new NotFoundException('Produit non trouvé');
+
+        const updated = await this.prisma.product.update({
+            where: { id },
+            data: { quantite },
+        });
+
+        return new BaseResponse(
+            200,
+            'Quantité mise à jour avec succès',
+            { productId: updated.id }
+        );
+    }
+
 
     async getProductById(id: string): Promise<BaseResponse<any>> {
         const product = await this.prisma.product.findUnique({
@@ -791,6 +889,64 @@ export class ProductService {
     }
 
     async getAllProductsAdmin(params: PaginationParamsDto): Promise<BaseResponse<any>> {
+        const { page, limit } = params;
+        const now = new Date();
+
+        const paginateOptions: PaginateOptions = {
+            model: 'Product',
+            page: Number(page),
+            limit: Number(limit),
+            selectAndInclude: {
+                include: {
+                    addedBy: true,
+                    decoupage: {
+                        include: {
+                            district: true,
+                            region: true,
+                            department: true,
+                            sousPrefecture: true,
+                            localite: true,
+                        },
+                    },
+                    EcommerceOrderItem: true,
+                },
+                select: null,
+            },
+            orderBy: { createdAt: 'desc' },
+        };
+
+        const data = await this.functionService.paginate(paginateOptions);
+
+        data.data = await Promise.all(
+            data.data.map(async (product) => {
+                // On ignore les produits sans codeUsers valide
+                if (!product.codeUsers || Number(product.codeUsers) <= 0) return null;
+
+                const userInfo = await this.getValidUserByCode(product.codeUsers);
+                if (!userInfo) return null; // Ignore si utilisateur pas valide
+
+                const isDisponible =
+                    new Date(product.disponibleDe) <= now &&
+                    new Date(product.disponibleJusqua) >= now;
+
+                const images = await this.getProductImages(product.id);
+
+                return {
+                    ...product,
+                    statut: isDisponible ? 'disponible' : 'indisponible',
+                    images,
+                    userInfo,
+                };
+            }),
+        );
+
+        // Supprime les produits null
+        data.data = data.data.filter((p) => p !== null);
+
+        return new BaseResponse(200, 'Tous les produits admin avec découpage', data);
+    }
+
+    async getAllProductsAdmin1(params: PaginationParamsDto): Promise<BaseResponse<any>> {
         const { page, limit } = params;
         const now = new Date();
 
