@@ -19,7 +19,7 @@ import { UpdateProfileDto } from 'src/dto/request/update-profile.dto';
 import { LoginWithCodeDto } from 'src/dto/request/login-code.dto';
 import { LoginWithPhoneDto } from 'src/dto/request/login-phone.dto';
 import { FilterUserDto } from 'src/dto/request/filter-user.dto';
-import { LoginByPhoneCode } from 'src/dto/request/LoginByPhoneCode.dto';
+import { LoginByPhoneCode } from 'src/dto/request/loginByPhoneCode.dto';
 import { LocalStorageService } from 'src/utils/LocalStorageService';
 import * as path from 'path';
 import { getPublicFileUrl } from 'src/utils/helper';
