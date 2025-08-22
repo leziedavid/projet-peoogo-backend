@@ -22,6 +22,9 @@ import { LocaliteModule } from './localite/localite.module';
 import { ProductModule } from './product/product.module';
 import { MessageModule } from './message/message.module';
 import { StatistiqueModule } from './statistique/statistique.module';
+import { ReversementModule } from './reversement/reversement.module';
+import { TransactionModule } from './transaction/transaction.module';
+import { ContactModule } from './contact/contact.module';
 
 @Module({
   imports: [
@@ -46,7 +49,10 @@ import { StatistiqueModule } from './statistique/statistique.module';
     ProductModule,
     MessageModule,
     StatistiqueModule,
-    
+    ReversementModule,
+    TransactionModule,
+    ContactModule,
+
   ],
 })
 export class AppModule {}

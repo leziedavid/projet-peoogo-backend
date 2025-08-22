@@ -8,6 +8,7 @@ import { FunctionService, PaginateOptions } from 'src/utils/pagination.service';
 import { startOfMonth, endOfMonth, format } from 'date-fns';
 import { use } from 'passport';
 import { EnrichedProducer } from 'src/interface/EnrichedProducer';
+import { getPublicFileUrl } from 'src/utils/helper';
 
 
 @Injectable()
@@ -23,8 +24,21 @@ export class EcommerceOrderService {
         const randomPart = Math.floor(1000 + Math.random() * 9000);
         return `CMD-${datePart}-${randomPart}`;
     }
+    private async getProductImages(productId: string): Promise<string[]> {
+        const files = await this.prisma.fileManager.findMany({
+            where: {
+                fileType: 'productFiles',
+                targetId: productId,
+            },
+            orderBy: { createdAt: 'asc' },
+        });
 
-    async createOrder(dto: CreateEcommerceOrderDto, userId: string) {
+        // console.log('🚀 files:', files);
+        // Transforme les fileUrl relatifs en URL publiques complètes
+        return files.map(file => getPublicFileUrl(file.fileUrl));
+    }
+
+    async createOrderOne(dto: CreateEcommerceOrderDto, userId: string) {
         const productIds = dto.items.map(i => i.productId);
 
         const products = await this.prisma.product.findMany({
@@ -95,6 +109,96 @@ export class EcommerceOrderService {
         }
     }
 
+    async createOrder(dto: CreateEcommerceOrderDto, userId: string) {
+        const productIds = dto.items.map(i => i.productId);
+
+        const products = await this.prisma.product.findMany({
+            where: { id: { in: productIds } },
+        });
+
+        if (products.length !== productIds.length) {
+            throw new BadRequestException('Un ou plusieurs produits n’existent pas');
+        }
+
+        const calculatedAmount = dto.items.reduce((acc, item) => {
+            const prod = products.find(p => p.id === item.productId);
+            if (!prod) {
+                throw new BadRequestException(`Produit introuvable: ${item.productId}`);
+            }
+
+            // ✅ Vérifier la quantité disponible
+            if (prod.quantite < item.quantity) {
+                throw new BadRequestException(
+                    `Stock insuffisant pour le produit ${prod.nom} (disponible: ${prod.quantite}, demandé: ${item.quantity})`
+                );
+            }
+
+            return acc + prod.prixUnitaire * item.quantity;
+        }, 0);
+
+        if (Math.abs(calculatedAmount - dto.amount) > 0.01) {
+            throw new BadRequestException('Montant total invalide');
+        }
+
+        const orderNumber = await this.generateOrderNumber();
+
+        const orderItems: Prisma.EcommerceOrderItemUncheckedCreateWithoutEcommerceOrderInput[] =
+            dto.items.map(item => ({
+                productId: item.productId,
+                quantity: item.quantity,
+                prixUnitaire: item.price,
+            }));
+
+        let paymentStatus: OderPaiementStatus;
+        if (dto.paiementStatus === true) {
+            paymentStatus = OderPaiementStatus.PAYE;
+        } else if (dto.paiementStatus === false) {
+            paymentStatus = OderPaiementStatus.ECHEC;
+        } else {
+            paymentStatus = OderPaiementStatus.EN_ATTENTE_DE_PAIEMENT;
+        }
+
+        try {
+            // ✅ Transaction : création commande + décrément stock
+            const order = await this.prisma.$transaction(async (tx) => {
+                const createdOrder = await tx.ecommerceOrder.create({
+                    data: {
+                        ordersNumber: orderNumber,
+                        userId,
+                        paymentMethod: dto.paymentMethod,
+                        deliveryMethod: dto.deliveryMethod,
+                        amount: dto.amount,
+                        status: OrderStatus.PENDING,
+                        paymentStatus: paymentStatus,
+                        network: dto.network,
+                        paiementNumber: dto.paiementNumber,
+                        addedById: userId,
+                        items: { create: orderItems },
+                    },
+                    include: { items: true },
+                });
+
+                // 🔥 Décrémenter les quantités des produits
+                for (const item of dto.items) {
+                    await tx.product.update({
+                        where: { id: item.productId },
+                        data: {
+                            quantite: {
+                                decrement: item.quantity,
+                            },
+                        },
+                    });
+                }
+
+                return createdOrder;
+            });
+
+            return new BaseResponse(201, 'Commande créée avec succès', order);
+        } catch (error) {
+            throw new InternalServerErrorException('Erreur lors de la création de la commande');
+        }
+    }
+
 
     async getOrderById(id: string) {
         const order = await this.prisma.ecommerceOrder.findUnique({
@@ -155,9 +259,9 @@ export class EcommerceOrderService {
         // Vérifie que l'utilisateur est le créateur d'au moins un produit de la commande
         const isCreator = order.items.some(item => item.product.addedById === userId);
 
-        if (!isCreator) {
-            throw new ForbiddenException("Vous n'êtes pas autorisé à modifier cette commande");
-        }
+        // if (!isCreator) {
+        //     throw new ForbiddenException("Vous n'êtes pas autorisé à modifier cette commande");
+        // }
 
         const updated = await this.prisma.ecommerceOrder.update({
             where: { id: orderId },
@@ -202,7 +306,6 @@ export class EcommerceOrderService {
         return new BaseResponse(200, 'Commande annulée avec succès', updated);
     }
 
-
     async getAllOrdersOne(params: PaginationParamsDto): Promise<BaseResponse<any>> {
         const options: PaginateOptions = {
             model: 'EcommerceOrder',
@@ -238,15 +341,50 @@ export class EcommerceOrderService {
             orderBy: { createdAt: 'desc' },
             selectAndInclude: {
                 include: {
-                    items: { include: { product: true } },
-                    user: true,
+                    items: {
+                        include: {
+                            product: true,
+                        },
+                    },
+                    user: {
+                        select: {
+                            name: true,
+                            email: true,
+                            phoneNumber: true,
+                        },
+                    },
                 },
                 select: null,
             },
         };
 
         const data = await this.functionService.paginate(options);
-        return new BaseResponse(200, 'Commandes utilisateur paginées', data);
+
+        // Transformer les items pour inclure l'image transformée
+        const orders = data.data.map((order: any) => {
+            const transformedItems = order.items.map((item: any) => {
+                const product = item.product;
+                return {
+                    ...item,
+                    product: {
+                        ...product,
+                        imageUrl: product?.imageUrl ? getPublicFileUrl(product.imageUrl) : "/placeholder.png",
+                    },
+                };
+            });
+
+            return {
+                ...order,
+                items: transformedItems,
+            };
+        });
+
+        const result = {
+            ...data,
+            data: orders,
+        };
+
+        return new BaseResponse(200, 'Commandes utilisateur paginées', result);
     }
 
     async getOrdersHistoryByUserId(userId: string, params: PaginationParamsDto): Promise<BaseResponse<any>> {
@@ -271,7 +409,24 @@ export class EcommerceOrderService {
         };
 
         const data = await this.functionService.paginate(options);
-        return new BaseResponse(200, 'Commandes utilisateur paginées', data);
+
+        // Transformer les items pour inclure l'image du produit
+        const orders = data.data.map((order: any) => {
+            const transformedItems = order.items.map((item: any) => ({
+                ...item,
+                product: {
+                    ...item.product,
+                    imageUrl: item.product?.imageUrl ? getPublicFileUrl(item.product.imageUrl) : "/placeholder.png",
+                },
+            }));
+
+            return {
+                ...order,
+                items: transformedItems,
+            };
+        });
+
+        return new BaseResponse(200, 'Commandes utilisateur paginées', { ...data, data: orders });
     }
 
     async getOrdersByProductCreator(creatorId: string, params: PaginationParamsDto): Promise<BaseResponse<any>> {
@@ -292,17 +447,33 @@ export class EcommerceOrderService {
             selectAndInclude: {
                 include: {
                     user: true,
-                    items: {
-                        include: { product: true },
-                    },
+                    items: { include: { product: true } },
                 },
                 select: null,
             },
         };
 
         const data = await this.functionService.paginate(options);
-        return new BaseResponse(200, 'Commandes liées aux produits créés', data);
+
+        // Transformer les items pour inclure l'image du produit
+        const orders = data.data.map((order: any) => {
+            const transformedItems = order.items.map((item: any) => ({
+                ...item,
+                product: {
+                    ...item.product,
+                    imageUrl: item.product?.imageUrl ? getPublicFileUrl(item.product.imageUrl) : "/placeholder.png",
+                },
+            }));
+
+            return {
+                ...order,
+                items: transformedItems,
+            };
+        });
+
+        return new BaseResponse(200, 'Commandes liées aux produits créés', { ...data, data: orders });
     }
+
 
     async getOrderStatsAndGains(): Promise<BaseResponse<any>> {
         // Comptages globaux
@@ -449,18 +620,35 @@ export class EcommerceOrderService {
     /**
      * Enrichit les items d'une commande avec le producteur réel et ses stats
      */
-    private async enrichOrderItems(items: (EcommerceOrderItem & { product?: any })[]) {
+
+    private async enrichOrderItems(
+        items: (EcommerceOrderItem & { product?: any })[]
+    ) {
         const producerCache: Record<string, EnrichedProducer> = {};
 
         for (const item of items) {
             const product = item.product;
             if (!product || !product.codeUsers) continue;
 
+            // Récupérer et attacher le producteur
             const producer = await this.getProducer(product.codeUsers, producerCache);
-
             this.addItemStatsToProducer(producer, item);
-
             product.producer = producer;
+            product.imageUrl = getPublicFileUrl(product.imageUrl);
+        }
+    }
+
+
+    private async enrichOrderItems1(items: (EcommerceOrderItem & { product?: any })[]) {
+        const producerCache: Record<string, EnrichedProducer> = {};
+        console.log('items:', items);
+        for (const item of items) {
+            const product = item.product;
+            if (!product || !product.codeUsers) continue;
+            const producer = await this.getProducer(product.codeUsers, producerCache);
+            this.addItemStatsToProducer(producer, item);
+            product.producer = producer;
+            // ajouter le reverser
         }
     }
 
@@ -476,6 +664,7 @@ export class EcommerceOrderService {
                     name: true,
                     phoneNumber: true,
                     typeCompte: true,
+                    codeGenerate: true,
                 },
             });
 
@@ -487,6 +676,7 @@ export class EcommerceOrderService {
                 ...producer,
                 totalQuantity: 0,
                 totalAmount: 0,
+                reverser: 0,
             };
         }
 
@@ -499,6 +689,7 @@ export class EcommerceOrderService {
     private addItemStatsToProducer(producer: EnrichedProducer, item: EcommerceOrderItem) {
         producer.totalQuantity += item.quantity;
         producer.totalAmount += item.quantity * item.prixUnitaire;
+        producer.reverser = item.reverser;
     }
 
 

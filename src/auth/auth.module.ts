@@ -8,6 +8,7 @@ import { PrismaModule } from 'src/prisma/prisma.module';
 import { JwtStrategy } from 'src/strategies/jwt.strategy';
 import { ConfigModule, ConfigService } from '@nestjs/config';
 import { FunctionService } from 'src/utils/pagination.service';
+import { LocalStorageService } from 'src/utils/LocalStorageService';
     
 @Module({
     imports: [
@@ -19,7 +20,7 @@ import { FunctionService } from 'src/utils/pagination.service';
         console.log('JWT_SECRET from ConfigService:', config.get<string>('JWT_SECRET'));
         return {
           secret: config.get<string>('JWT_SECRET'),
-          signOptions: { expiresIn: config.get<string>('JWT_EXPIRE') || '3d' },
+          signOptions: { expiresIn: config.get<string>('JWT_ACCESS_EXPIRE') || '15m' }, // par défaut 15m
         };
       }
     }),
@@ -28,7 +29,7 @@ import { FunctionService } from 'src/utils/pagination.service';
   ],
   
   controllers: [AuthController],
-  providers: [AuthService, CloudinaryService, JwtStrategy,FunctionService],  // <-- JwtStrategy ajouté ici
+  providers: [AuthService, CloudinaryService, JwtStrategy,FunctionService,LocalStorageService],  // <-- JwtStrategy ajouté ici
   exports: [PassportModule, JwtModule],                       // <-- exporter pour pouvoir utiliser JwtAuthGuard ailleurs
 })
 export class AuthModule { }

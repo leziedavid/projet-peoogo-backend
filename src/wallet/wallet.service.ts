@@ -13,11 +13,11 @@ export class WalletService {
     constructor(private readonly prisma: PrismaService) { }
 
     /** 💰 Recharge du portefeuille */
-    async rechargeWallet( userId: string,amount: number,paymentMethod: PaymentMethod = PaymentMethod.MOBILE_MONEY,rechargeType: string = 'WAVE',): Promise<BaseResponse<null>> {
+    async rechargeWallet(userId: string, amount: number, paymentMethod: PaymentMethod = PaymentMethod.MOBILE_MONEY, rechargeType: string = 'WAVE',): Promise<BaseResponse<null>> {
         if (amount <= 0) {
             throw new BadRequestException('Le montant doit être supérieur à 0.');
         }
-        
+
         // Vérifie si l'utilisateur a un wallet
         const wallet = await this.prisma.wallet.findUnique({
             where: { userId },
@@ -55,5 +55,35 @@ export class WalletService {
             throw new InternalServerErrorException('Erreur lors de la recharge du wallet');
         }
     }
-    
+
+
+//     CREATE EXTENSION IF NOT EXISTS "pgcrypto"; --une seule fois suffit
+
+// INSERT INTO public."Wallet"
+//     (
+//         id,
+//         "userId",
+//         balance,
+//         "accountNumber",
+//         "paymentMethod",
+//         "rechargeType",
+//         "createdAt",
+//         "updatedAt"
+//     )
+// VALUES
+//     (
+//         gen_random_uuid(),
+//         'ID_UTILISATEUR_ICI', --remplace par le userId
+//   0,
+//         'ACCT-' || floor(random() * 900000 + 100000):: text,
+//         'MOBILE_MONEY',
+//         'WAVE',
+//         now(),
+//         now()
+//     );
+
+//     SELECT *
+// FROM public."Wallet"
+// WHERE "userId" = 'c87d1f1b-44cb-41f4-b93b-795f9896234a'
+// ORDER BY id ASC;
 }

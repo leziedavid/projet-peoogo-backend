@@ -20,7 +20,9 @@ import { LoginWithCodeDto } from 'src/dto/request/login-code.dto';
 import { LoginWithPhoneDto } from 'src/dto/request/login-phone.dto';
 import { FilterUserDto } from 'src/dto/request/filter-user.dto';
 import { LoginByPhoneCode } from 'src/dto/request/LoginByPhoneCode.dto';
-
+import { LocalStorageService } from 'src/utils/LocalStorageService';
+import * as path from 'path';
+import { getPublicFileUrl } from 'src/utils/helper';
 
 @Injectable()
 export class AuthService {
@@ -29,6 +31,7 @@ export class AuthService {
         private readonly jwtService: JwtService,
         private readonly cloudinary: CloudinaryService,
         private readonly functionService: FunctionService,
+        private readonly localStorage: LocalStorageService, // injecter ton service
 
     ) { }
 
@@ -36,8 +39,8 @@ export class AuthService {
         return `NR ${Math.floor(Math.random() * 1000000000000)}`; // Exemple de génération de numéro unique
     }
 
-    /** Enregistrement d’un nouvel utilisateur */
-    async register(dto: RegisterDto): Promise<BaseResponse<{ userId: string }>> {
+    /** Enregistrement d’un nouvel utilisateur CloudinaryService */
+    async register2(dto: RegisterDto): Promise<BaseResponse<{ userId: string }>> {
 
         const accountNumberGenearate = this.generateAccountNumber();
         const exists = await this.prisma.user.findUnique({ where: { email: dto.email } });
@@ -80,6 +83,114 @@ export class AuthService {
         return new BaseResponse(201, 'Utilisateur créé', { userId: user.id });
     }
 
+    /** Enregistrement d’un nouvel utilisateur */
+    async register(dto: RegisterDto): Promise<BaseResponse<{ userId: string }>> {
+        const accountNumberGenearate = this.generateAccountNumber();
+
+        const exists = await this.prisma.user.findUnique({ where: { email: dto.email } });
+        if (exists) throw new UnauthorizedException('Email déjà utilisé');
+
+        const hashed = await bcrypt.hash(dto.password, 10);
+        const passwordGenerat: string | null = dto.password ? dto.password : null;
+
+        const user = await this.prisma.user.create({
+            data: {
+                email: dto.email,
+                name: dto.name,
+                phoneNumber: dto.phoneNumber,
+                password: hashed,
+                passwordGenerate: passwordGenerat,
+                role: dto.role,
+                status: UserStatus.ACTIVE,
+                typeCompte: dto.typeCompte,
+                wallet: { create: { balance: 0, accountNumber: accountNumberGenearate } },
+            },
+        });
+
+        // Si un fichier est fourni, le sauvegarder localement
+        if (dto.file) {
+            try {
+                const upload = await this.localStorage.saveFile(dto.file.buffer, 'users');
+
+                await this.prisma.fileManager.create({
+                    data: {
+                        ...upload,
+                        fileType: 'userFiles',
+                        targetId: user.id,
+                    },
+                });
+            } catch (err) {
+                console.log(err);
+                throw new InternalServerErrorException('Erreur lors de l’upload de l’image');
+            }
+        }
+
+        return new BaseResponse(201, 'Utilisateur créé', { userId: user.id });
+    }
+
+
+        private async uploadAndSaveSingleFile(enrollementId: string, fileBuffer: Buffer | string, fileType: string, folder: string,): Promise<void> {
+        // Chercher fichier existant et supprimer
+        const existingFile = await this.prisma.fileManager.findFirst({
+            where: { targetId: enrollementId, fileType },
+            orderBy: { createdAt: 'desc' },
+        });
+
+        if (existingFile?.fileCode) {
+            try {
+                // await this.cloudinary.deleteFileByPublicId(existingFile.fileCode);
+                await this.localStorage.deleteFile(existingFile.fileCode);
+            } catch (error) {
+                console.warn(`Erreur suppression Cloudinary ${existingFile.fileCode}: ${error.message}`);
+            }
+            await this.prisma.fileManager.deleteMany({
+                where: { targetId: enrollementId, fileType },
+            });
+        }
+
+        // Upload fichier
+        // const uploadResult = await this.cloudinary.uploadFile(fileBuffer, folder);
+        const uploadResult = await this.localStorage.saveFile(fileBuffer, folder);
+        // Sauvegarde en DB
+        await this.prisma.fileManager.create({
+            data: {
+                ...uploadResult,
+                fileType,
+                targetId: enrollementId,
+            },
+        });
+    }
+
+    /** Mise à jour du profil utilisateur */
+    async updateUser(id: string, dto: UpdateUserDto): Promise<BaseResponse<{ user: any }>> {
+        const user = await this.prisma.user.findUnique({ where: { id } });
+        if (!user) throw new NotFoundException('Utilisateur introuvable');
+
+        const data: any = {};
+        if (dto.name) data.name = dto.name;
+        if (dto.password) data.password = await bcrypt.hash(dto.password, 10);
+        if (dto.role) data.role = dto.role;
+        if (dto.status) data.status = dto.status;
+        if (dto.typeCompte) data.typeCompte = dto.typeCompte;
+        if (dto.phoneCountryCode) data.phoneCountryCode = dto.phoneCountryCode;
+        if (dto.phoneNumber) data.phoneNumber = dto.phoneNumber;
+        if (dto.email) data.email = dto.email;
+
+        const updated = await this.prisma.user.update({ where: { id }, data });
+
+        // 📎 Mise à jour des fichiers
+        try {
+            if (dto.file) {
+                // await handleFileUpdate(dto.file.buffer, 'userFiles');
+                await this.uploadAndSaveSingleFile(id, dto.file.buffer, 'userFiles', 'users');
+            }
+        } catch (err) {
+            throw new InternalServerErrorException("Erreur lors de la mise à jour d’un fichier utilisateur");
+        }
+
+        return new BaseResponse(200, 'Profil mis à jour', { user: updated });
+    }
+
     /** Connexion utilisateur + génération tokens */
     async login(dto: LoginDto): Promise<BaseResponse<{ access_token: string; refresh_token: string; user: any }>> {
         const user = await this.prisma.user.findUnique({ where: { email: dto.email } });
@@ -98,7 +209,9 @@ export class AuthService {
 
         // findwallet
         const wallet = await this.prisma.wallet.findUnique({ where: { userId: user.id } });
-        const imageUrl = file?.fileUrl || null;
+        // const imageUrl = file?.fileUrl || null;
+        // Transforme le fileUrl relatif en URL publique
+        const imageUrl = file ? getPublicFileUrl(file.fileUrl) : null;
 
         const payload = { sub: user.id, role: user.role, status: user.status, name: user.name, imageUrl, wallet: wallet.balance, compte: wallet.accountNumber };
         const access = this.jwtService.sign(payload, { expiresIn: '15m' });
@@ -127,7 +240,7 @@ export class AuthService {
             : await this.prisma.user.findUnique({ where: { phoneNumber: dto.login } });
 
         if (!user) throw new UnauthorizedException('Utilisateur non trouvé');
-        
+
         const ok = await bcrypt.compare(dto.password, user.password);
         if (!ok) throw new UnauthorizedException('Mot de passe incorrect');
         if (user.status === UserStatus.INACTIVE) throw new UnauthorizedException('Compte inactif');
@@ -141,7 +254,8 @@ export class AuthService {
 
         // Récupération wallet
         const wallet = await this.prisma.wallet.findUnique({ where: { userId: user.id } });
-        const imageUrl = file?.fileUrl || null;
+        // const imageUrl = file?.fileUrl || null;
+        const imageUrl = file ? getPublicFileUrl(file.fileUrl) : null;
 
         const payload = {
             sub: user.id,
@@ -170,14 +284,12 @@ export class AuthService {
         });
     }
 
-
     /** Rafraîchir access token */
     async refreshToken(token: string): Promise<BaseResponse<{ access_token: string }>> {
         try {
             const payload = this.jwtService.verify(token);
             const access = this.jwtService.sign(
                 { sub: payload.sub, role: payload.role, status: payload.status, name: payload.name, imageUrl: payload.imageUrl, partnerId: payload.partnerId, wallet: payload.balance, compte: payload.accountNumber },
-
                 { expiresIn: '15m' },
             );
             return new BaseResponse(200, 'Token rafraîchi', { access_token: access });
@@ -187,7 +299,7 @@ export class AuthService {
     }
 
     /** Mise à jour du profil utilisateur */
-    async updateUser(id: string, dto: UpdateUserDto): Promise<BaseResponse<{ user: any }>> {
+    async updateUser2(id: string, dto: UpdateUserDto): Promise<BaseResponse<{ user: any }>> {
         const user = await this.prisma.user.findUnique({ where: { id } });
         if (!user) throw new NotFoundException('Utilisateur introuvable');
 
@@ -199,7 +311,9 @@ export class AuthService {
         if (dto.typeCompte) data.typeCompte = dto.typeCompte;
         if (dto.phoneCountryCode) data.phoneCountryCode = dto.phoneCountryCode;
         if (dto.phoneNumber) data.phoneNumber = dto.phoneNumber;
-        
+        if (dto.email) data.email = dto.email;
+
+
         const updated = await this.prisma.user.update({ where: { id }, data });
 
         // 🔁 Fonction réutilisable pour chaque type de fichier
@@ -243,83 +357,6 @@ export class AuthService {
         return new BaseResponse(200, 'Profil mis à jour', { user: updated });
     }
 
-    /** Mise à jour du profil utilisateur */
-    async updateUser2(id: string, dto: UpdateUserDto): Promise<BaseResponse<{ user: any }>> {
-        const user = await this.prisma.user.findUnique({ where: { id } });
-        if (!user) throw new NotFoundException('Utilisateur introuvable');
-
-        const data: any = {};
-        if (dto.name) data.name = dto.name;
-        if (dto.password) data.password = await bcrypt.hash(dto.password, 10);
-        if (dto.role) data.role = dto.role;
-        if (dto.status) data.status = dto.status;
-
-        const updated = await this.prisma.user.update({ where: { id }, data });
-
-        if (dto.file) {
-            try {
-                const upload = await this.cloudinary.uploadFile(dto.file.buffer, 'users');
-
-                await this.prisma.fileManager.deleteMany({
-                    where: { fileType: 'userFiles', targetId: id },
-                });
-
-                await this.prisma.fileManager.create({
-                    data: {
-                        ...upload,
-                        fileType: 'userFiles',
-                        targetId: id,
-                    },
-                });
-            } catch (err) {
-                throw new InternalServerErrorException('Erreur lors de la mise à jour de l’image');
-            }
-        }
-
-        if (dto.carte) {
-            try {
-                const upload = await this.cloudinary.uploadFile(dto.file.buffer, 'users');
-
-                await this.prisma.fileManager.deleteMany({
-                    where: { fileType: 'userCarte', targetId: id },
-                });
-
-                await this.prisma.fileManager.create({
-                    data: {
-                        ...upload,
-                        fileType: 'userCarte',
-                        targetId: id,
-                    },
-                });
-            } catch (err) {
-                throw new InternalServerErrorException('Erreur lors de la mise à jour de l’image');
-            }
-        }
-
-
-        if (dto.permis) {
-            try {
-                const upload = await this.cloudinary.uploadFile(dto.file.buffer, 'users');
-
-                await this.prisma.fileManager.deleteMany({
-                    where: { fileType: 'userPermis', targetId: id },
-                });
-
-                await this.prisma.fileManager.create({
-                    data: {
-                        ...upload,
-                        fileType: 'userPermis',
-                        targetId: id,
-                    },
-                });
-            } catch (err) {
-                throw new InternalServerErrorException('Erreur lors de la mise à jour de l’image');
-            }
-        }
-
-        return new BaseResponse(200, 'Profil mis à jour', { user: updated });
-    }
-
     /**
    * Valide ou met à jour le statut du compte utilisateur
    * @param id ID de l'utilisateur
@@ -341,9 +378,11 @@ export class AuthService {
     }
 
     async deleteUser(id: string): Promise<BaseResponse<null>> {
+        // Vérifie que l'utilisateur existe
         const user = await this.prisma.user.findUnique({ where: { id } });
         if (!user) throw new NotFoundException('Utilisateur introuvable');
 
+        // Supprime les fichiers liés à l'utilisateur
         const files = await this.prisma.fileManager.findMany({
             where: { fileType: 'userFiles', targetId: id },
         });
@@ -351,7 +390,8 @@ export class AuthService {
         if (files.length) {
             for (const file of files) {
                 try {
-                    await this.cloudinary.deleteFileByPublicId(file.fileCode);
+                    // await this.cloudinary.deleteFileByPublicId(file.fileCode);
+                    await this.localStorage.deleteFile(file.fileCode);
                 } catch (err) {
                     console.warn(`Erreur suppression Cloudinary du fichier ${file.fileCode}`);
                 }
@@ -362,6 +402,12 @@ export class AuthService {
             });
         }
 
+        // Supprime ou dissocie les wallets liés
+        await this.prisma.wallet.deleteMany({
+            where: { userId: id },
+        });
+
+        // Supprime l'utilisateur
         await this.prisma.user.delete({ where: { id } });
 
         return new BaseResponse(200, 'Utilisateur supprimé', null);
@@ -577,7 +623,6 @@ export class AuthService {
     /** 🔍 Liste paginée de tous les utilisateurs avec relations */
     async getAllUsers(params: PaginationParamsDto): Promise<BaseResponse<any>> {
         const { page, limit } = params;
-
         const data = await this.functionService.paginate({
             model: 'User',
             page: Number(page),
@@ -640,29 +685,46 @@ export class AuthService {
             orderBy: { createdAt: 'desc' },
         });
 
+        // Ajout des fichiers (image, carte, permis)
         const usersWithFiles = await Promise.all(
             data.data.map(async (user) => {
-                const [imageFile, cniFile, permisFile] = await Promise.all([
-                    this.prisma.fileManager.findFirst({
-                        where: { targetId: user.id, fileType: 'enrollements_photo' },
-                        orderBy: { createdAt: 'desc' },
-                    }),
-                    this.prisma.fileManager.findFirst({
-                        where: { targetId: user.id, fileType: 'enrollements_photo_document_1' },
-                        orderBy: { createdAt: 'desc' },
-                    }),
-                    this.prisma.fileManager.findFirst({
-                        where: { targetId: user.id, fileType: 'enrollements_photo_document_2' },
-                        orderBy: { createdAt: 'desc' },
-                    }),
-                ]);
+                if (user.enrollementsId) {
+                    // Utilisateur enrolé → récupérer fichiers depuis Enrollements
+                    const [photo, document1, document2] = await Promise.all([
+                        this.prisma.fileManager.findFirst({
+                            where: { targetId: user.enrollementsId, fileType: 'enrollements_photo' },
+                            orderBy: { createdAt: 'desc' },
+                        }),
+                        this.prisma.fileManager.findFirst({
+                            where: { targetId: user.enrollementsId, fileType: 'enrollements_photo_document_1' },
+                            orderBy: { createdAt: 'desc' },
+                        }),
+                        this.prisma.fileManager.findFirst({
+                            where: { targetId: user.enrollementsId, fileType: 'enrollements_photo_document_2' },
+                            orderBy: { createdAt: 'desc' },
+                        }),
+                    ]);
 
-                return {
-                    ...user,
-                    image: imageFile?.fileUrl || null,
-                    carte: cniFile?.fileUrl || null,
-                    permis: permisFile?.fileUrl || null,
-                };
+                    return {
+                        ...user,
+                        userFiles: {
+                            photo: photo ? getPublicFileUrl(photo.fileUrl) : null,
+                            document1: document1 ? getPublicFileUrl(document1.fileUrl) : null,
+                            document2: document2 ? getPublicFileUrl(document2.fileUrl) : null,
+                        },
+                    };
+                } else {
+                    // Utilisateur normal → juste sa photo
+                    const photo = await this.prisma.fileManager.findFirst({
+                        where: { targetId: user.id, fileType: 'userFiles' },
+                        orderBy: { createdAt: 'desc' },
+                    });
+
+                    return {
+                        ...user,
+                        photo: photo ? getPublicFileUrl(photo.fileUrl) : null,
+                    };
+                }
             })
         );
 
@@ -795,26 +857,43 @@ export class AuthService {
         // Ajout des fichiers (image, carte, permis)
         const usersWithFiles = await Promise.all(
             data.data.map(async (user) => {
-                const [photo, document1, document2] = await Promise.all([
-                    this.prisma.fileManager.findFirst({
+                if (user.enrollementsId) {
+                    // Utilisateur enrolé → récupérer fichiers depuis Enrollements
+                    const [photo, document1, document2] = await Promise.all([
+                        this.prisma.fileManager.findFirst({
+                            where: { targetId: user.enrollementsId, fileType: 'enrollements_photo' },
+                            orderBy: { createdAt: 'desc' },
+                        }),
+                        this.prisma.fileManager.findFirst({
+                            where: { targetId: user.enrollementsId, fileType: 'enrollements_photo_document_1' },
+                            orderBy: { createdAt: 'desc' },
+                        }),
+                        this.prisma.fileManager.findFirst({
+                            where: { targetId: user.enrollementsId, fileType: 'enrollements_photo_document_2' },
+                            orderBy: { createdAt: 'desc' },
+                        }),
+                    ]);
+
+                    return {
+                        ...user,
+                        userFiles: {
+                            photo: photo ? getPublicFileUrl(photo.fileUrl) : null,
+                            document1: document1 ? getPublicFileUrl(document1.fileUrl) : null,
+                            document2: document2 ? getPublicFileUrl(document2.fileUrl) : null,
+                        },
+                    };
+                } else {
+                    // Utilisateur normal → juste sa photo
+                    const photo = await this.prisma.fileManager.findFirst({
                         where: { targetId: user.id, fileType: 'userFiles' },
                         orderBy: { createdAt: 'desc' },
-                    }),
-                    this.prisma.fileManager.findFirst({
-                        where: { targetId: user.id, fileType: 'userCarte' },
-                        orderBy: { createdAt: 'desc' },
-                    }),
-                    this.prisma.fileManager.findFirst({
-                        where: { targetId: user.id, fileType: 'userPermis' },
-                        orderBy: { createdAt: 'desc' },
-                    }),
-                ]);
-                return {
-                    ...user,
-                    photo: photo?.fileUrl || null,
-                    document1: document1?.fileUrl || null,
-                    document2: document2?.fileUrl || null,
-                };
+                    });
+
+                    return {
+                        ...user,
+                        photo: photo ? getPublicFileUrl(photo.fileUrl) : null,
+                    };
+                }
             })
         );
 
@@ -823,7 +902,6 @@ export class AuthService {
             data: usersWithFiles,
         });
     }
-
 
     async loginWithCode(dto: LoginWithCodeDto): Promise<BaseResponse<any>> {
 
@@ -847,7 +925,8 @@ export class AuthService {
 
         // findwallet
         const wallet = await this.prisma.wallet.findUnique({ where: { userId: user.id } });
-        const imageUrl = file?.fileUrl || null;
+        // const imageUrl = file?.fileUrl || null;
+        const imageUrl = file ? getPublicFileUrl(file.fileUrl) : null;
 
         return new BaseResponse(200, 'Connexion réussie par code', {
             access_token,
@@ -887,8 +966,8 @@ export class AuthService {
 
         // findwallet
         const wallet = await this.prisma.wallet.findUnique({ where: { userId: user.id } });
-        const imageUrl = file?.fileUrl || null;
-
+        // const imageUrl = file?.fileUrl || null;
+        const imageUrl = file ? getPublicFileUrl(file.fileUrl) : null;
         return new BaseResponse(200, 'Connexion réussie', {
             access_token,
             refresh_token,
@@ -910,7 +989,7 @@ export class AuthService {
         const user = await this.prisma.user.findFirst({
             where: {
                 codeGenerate: {
-                    equals: cleanCode+"#",
+                    equals: cleanCode + "#",
                     mode: 'insensitive',
                 },
             },
@@ -925,7 +1004,7 @@ export class AuthService {
         const enrollement = await this.prisma.enrollements.findFirst({
             where: {
                 code: {
-                    equals: cleanCode+"#",
+                    equals: cleanCode + "#",
                     mode: 'insensitive',
                 },
             },
@@ -958,5 +1037,57 @@ export class AuthService {
             enrollement,
         });
     }
+
+
+    /** Récupère tous les utilisateurs avec le rôle AGENT_ENROLEUR */
+async getAgentsEnroleurs(): Promise<BaseResponse<any[]>> {
+    try {
+        const users = await this.prisma.user.findMany({
+            where: { role: 'AGENT_ENROLEUR' },
+            include: {
+                wallet: true,
+            },
+        });
+
+        const data = users.map(user => ({
+            id: user.id,
+            name: user.name,
+            email: user.email,
+            phoneNumber: user.phoneNumber,
+            status: user.status,
+            wallet: user.wallet ? { balance: user.wallet.balance, accountNumber: user.wallet.accountNumber } : null,
+        }));
+
+        return new BaseResponse(200, 'Liste des agents enroleurs', data);
+    } catch (error) {
+        throw new InternalServerErrorException(error.message);
+    }
+}
+
+/** Récupère tous les utilisateurs avec le rôle AGENT_CONTROLE */
+async getAgentsControle(): Promise<BaseResponse<any[]>> {
+    try {
+        const users = await this.prisma.user.findMany({
+            where: { role: 'AGENT_CONTROLE' },
+            include: {
+                wallet: true
+            },
+        });
+
+        const data = users.map(user => ({
+            id: user.id,
+            name: user.name,
+            email: user.email,
+            phoneNumber: user.phoneNumber,
+            status: user.status,
+            wallet: user.wallet ? { balance: user.wallet.balance, accountNumber: user.wallet.accountNumber } : null,
+        }));
+
+        return new BaseResponse(200, 'Liste des agents contrôle', data);
+    } catch (error) {
+        throw new InternalServerErrorException(error.message);
+    }
+}
+
 
 }

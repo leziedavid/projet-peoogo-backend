@@ -1,0 +1,525 @@
+// generator client {
+//   provider = "prisma-client-js"
+// }
+
+// datasource db {
+//   provider = "postgresql"
+//   url      = env("DATABASE_URL")
+// }
+
+// // TABLES
+// // schema.prisma
+
+// // ENUMS
+// enum Role {
+//   ADMIN
+//   USER
+//   AGENT_ENROLEUR
+//   AGENT_CONTROLE
+//   PRODUCTEUR
+// }
+
+// enum ProductStatus {
+//   ACTIVE
+//   INACTIVE
+//   BLOCKED
+// }
+
+// enum UserStatus {
+//   INACTIVE
+//   ACTIVE
+//   BLOCKED
+// }
+
+// enum TypeCompte {
+//   AGRICULTEURS
+//   AQUACULTEURS
+//   AUTRE_ACTEURS
+//   APICULTEURS
+//   REVENDEUR
+//   TRANSFORMATEUR
+//   ACHETEUR
+//   RELAIS
+//   SUPPERVISEUR
+//   UTILISATEUR
+//   ADMINISTRATEUR
+// }
+
+// enum NiveauInstruction {
+//   AUCUN
+//   PRIMAIRE
+//   SECONDAIRE
+//   SUPERIEUR
+//   ALPHABETISE
+//   UNIVERSITAIRE
+//   SAIS_LIRE_ET_ECRIRE
+// }
+
+// enum StatusDossier {
+//   NON_TRAITE
+//   VAL
+//   REJ
+//   DOUBLON
+//   ENCOURS
+//   DEL
+//   IMAGE_INCOR
+//   DOUBLON_NUMBER
+// }
+
+// enum PaymentMethod {
+//   IMMEDIATE
+//   ON_ARRIVAL
+//   MOBILE_MONEY // ✅ Ajouté
+//   CARD // ✅ Ajouté
+//   BANK_TRANSFER // ✅ Ajouté
+// }
+
+// enum TransactionType {
+//   DEPOSIT
+//   PAYMENT
+//   COMMISSION
+//   REFUND
+// }
+
+// enum NotificationType {
+//   SMS
+//   EMAIL
+//   PUSH
+// }
+
+// enum NotificationStatus {
+//   PENDING
+//   SENT
+//   FAILED
+//   VALIDATED
+// }
+
+// enum OrderStatus {
+//   PENDING
+//   VALIDATED
+//   IN_PROGRESS
+//   COMPLETED
+//   CANCELLED
+// }
+
+// enum OderPaiementStatus {
+//   EN_ATTENTE_DE_PAIEMENT
+//   PAYE
+//   PAYE_PARTIELLEMENT
+//   ECHEC
+//   ANNULE
+//   REMBOURSE
+// }
+// enum Network {
+//   MOOV
+//   ORANGE
+//   MTN
+//   WAVE
+// }
+
+// // Méthodes de livraison
+// enum DeliveryMethod {
+//   HOME_DELIVERY
+//   STORE_PICKUP
+//   LIFT
+//   PICKUP
+//   DROP
+// }
+
+
+// // Type de message
+// enum MessageSender {
+//   user
+//   support
+// }
+
+// /// Enum pour les objets agricoles
+// enum ContactObjet {
+//   achat_produits
+//   vente_produits
+//   formation_agricole
+//   financement_agricole
+//   equipements_agricoles
+//   conseil_technique
+//   certification_bio
+//   transformation_produits
+//   marche_producteurs
+//   innovation_agricole
+//   partenariat_cooperatives
+//   assurance_agricole
+//   autre
+// }
+
+// // TABLES
+// model District {
+//   id         String      @id @default(uuid())
+//   nom        String
+//   statut Boolean? @default(true)
+//   regions    Region[]
+//   decoupages Decoupage[]
+// }
+
+// model Region {
+//   id           String      @id @default(uuid())
+//   nom          String
+//   statut Boolean? @default(true)
+//   districtId   String
+//   district     District   @relation(fields: [districtId], references: [id])
+//   departments  Department[]
+//   decoupages   Decoupage[]
+// }
+
+// model Department {
+//   id          String      @id @default(uuid())
+//   nom         String
+//   statut Boolean? @default(true)
+//   regionId    String
+//   region      Region      @relation(fields: [regionId], references: [id])
+//   sousPrefectures SousPrefecture[]
+//   decoupages  Decoupage[]
+// }
+
+// model SousPrefecture {
+//   id            String       @id @default(uuid())
+//   nom           String
+//   statut Boolean? @default(true)
+//   departmentId  String
+//   department    Department   @relation(fields: [departmentId], references: [id])
+//   localites     Localite[]
+//   decoupages    Decoupage[]
+// }
+
+// model Localite {
+//   id                String          @id @default(uuid())
+//   nom               String
+//   statut Boolean? @default(true)
+//   sousPrefectureId String
+//   sousPrefecture    SousPrefecture @relation(fields: [sousPrefectureId], references: [id])
+//   decoupages        Decoupage[]
+// }
+
+// model Decoupage {
+//   id               String         @id @default(uuid())
+//   nombreEnroler    Int?
+//   districtId       String
+//   regionId         String
+//   departmentId     String
+//   sousPrefectureId String
+//   localiteId       String
+//   district         District       @relation(fields: [districtId], references: [id])
+//   region           Region         @relation(fields: [regionId], references: [id])
+//   department       Department     @relation(fields: [departmentId], references: [id])
+//   sousPrefecture   SousPrefecture @relation(fields: [sousPrefectureId], references: [id])
+//   localite         Localite       @relation(fields: [localiteId], references: [id])
+//   produits         Product[]
+//   enrollements     Enrollements[] @relation("DecoupageEnrollements")
+// }
+
+// model User {
+//   id                String            @id @default(uuid())
+//   email             String            @unique
+//   password          String
+//   codeGenerate      String?
+//   passwordGenerate  String?
+//   enrollementsId    String?
+//   name              String
+//   role              Role
+//   status            UserStatus        @default(INACTIVE)
+//   phoneCountryCode  String?
+//   phoneNumber       String?           @unique
+//   typeCompte TypeCompte?
+//   createdAt         DateTime          @default(now())
+//   updatedAt         DateTime          @updatedAt
+//   wallet            Wallet?
+//   ecommerceOrders   EcommerceOrder[]
+//   addedProducts         Product[]         @relation("AddedByProduct")
+//   addedEcommerceOrders  EcommerceOrder[]  @relation("AddedByEcommerceOrder")
+//   agentEnroleur     Enrollements[]    @relation("AgentEnroleur")
+//   agentSuperviseur  Enrollements[]    @relation("AgentSuperviseur")
+//   agentControle     Enrollements[]    @relation("UserControl")
+//   // Transactions
+//   transactions         Transaction[]
+//   notifications      Notification[]
+//   messagesSent Message[] @relation("UserMessages")
+//   reversements       Reversement[]   @relation("ProducerReversements")
+
+// }
+
+// model Wallet {
+//   id            String        @id @default(uuid())
+//   balance       Int           @default(0)
+//   user          User          @relation(fields: [userId], references: [id])
+//   userId        String        @unique
+//   transactions  Transaction[]
+//   paymentMethod PaymentMethod @default(MOBILE_MONEY)
+//   rechargeType  String        @default("WAVE")
+//   createdAt     DateTime      @default(now())
+//   updatedAt     DateTime      @default(now()) @updatedAt
+//   accountNumber String        @unique // Numéro de compte unique
+//   reversements       Reversement[]
+// }
+
+// model Transaction {
+//   id                String          @id @default(uuid())
+//   amount            Int
+//   transactionNumber String?         @unique // 🆕 Optionnel avec @unique
+//   type              TransactionType
+//   walletId          String
+//   wallet            Wallet          @relation(fields: [walletId], references: [id])
+//   userId            String // ✅ Ajouté pour tracer l’utilisateur concerné
+//   user              User            @relation(fields: [userId], references: [id])
+//   reference         String? // ✅ Ex: ID de commande, ID de trajet...
+//   description       String? // ✅ Ex: "Commission 18% prélevée pour la commande XYZ"
+//   createdAt         DateTime        @default(now())
+//   updatedAt         DateTime        @default(now()) @updatedAt
+//   reversement       Reversement? @relation(name: "ReversementToTransaction")
+// }
+
+// model Product {
+//   id                  String              @id @default(uuid())
+//   nom                 String
+//   code                String              @unique
+//   description         String?
+//   quantite            Float
+//   unite               String
+//   imageUrl            String?
+//   prixUnitaire        Float
+//   prixEnGros          Float?              // <-- prix pour les achats en gros (optionnel)
+//   paymentMethod       String              // Méthode de paiement (e.g. Espèce, Orange Money)
+//   saleType            String              // Type de vente (gros/détail)
+//   status              ProductStatus       @default(ACTIVE)
+//   typeActeur          TypeCompte          // Enumération du type d’acteur
+//   disponibleDe        DateTime            // Date de début de disponibilité
+//   disponibleJusqua    DateTime            // Date de fin
+//   image               String?             // Image principale (optionnelle)
+//   autreImage          String?             // Image secondaire (optionnelle)
+//   codeUsers           String              // ⬅️ Code unique du producteur réel (ex : ENROLEMENTxxxxx)
+//   addedById           String              // Peut être un agent
+//   createdAt           DateTime            @default(now())
+//   updatedAt           DateTime            @updatedAt
+//   addedBy             User                @relation("AddedByProduct", fields: [addedById], references: [id])
+//   decoupageId         String
+//   decoupage           Decoupage           @relation(fields: [decoupageId], references: [id])
+//   EcommerceOrderItem  EcommerceOrderItem[]
+// }
+
+// model Enrollements {
+//   id                          String           @id @default(uuid())
+//   code                        String           @unique
+//   TypeCompte                  TypeCompte
+//   agent_id                    String
+//   agent_enroleur              User?             @relation("AgentEnroleur", fields: [agent_id], references: [id])
+//   agent_superviseur_id        String?
+//   agent_superviseur           User ?            @relation("AgentSuperviseur", fields: [agent_superviseur_id], references: [id])
+//   user_control_id             String?
+//   user_control                User?            @relation("UserControl", fields: [user_control_id], references: [id])
+//   confirm_validation_control  Boolean?
+//   numero_lot                  String?
+//   validation_control          Boolean?
+//   date_validation_control     DateTime?
+//   date_confirm_validation_control DateTime?
+//   commentaire_controle        String? // Champ pour les motifs de rejet saisis par le contrôleur
+//   is_deleted                  Boolean          @default(false)
+//   is_select_lot               String? // id de l’agent qui traite
+//   status_dossier              StatusDossier?
+//   time_enrolment              Int?
+//   start_date                  DateTime?
+//   end_date                    DateTime?
+//   nom                         String
+//   prenom                      String
+//   datedenaissance             DateTime
+//   lieudenaissance             String
+//   sexe                        String
+//   site                        String?
+//   nationalit                  String?
+//   situationmatrimoniale       String
+//   niveaudinstruction          NiveauInstruction
+//   numroprincipal              String?  @unique
+//   languelocaleparle           String
+//   autreslanguelocaleparle     String?
+//   decoupageId                 String
+//   decoupage                   Decoupage        @relation("DecoupageEnrollements", fields: [decoupageId], references: [id])
+//   campementquartier           String?
+//   coordonneesgeo              String?
+//   activitprincipaleId         String?
+//   activitprincipale           Activite?        @relation("ActivitePrincipale", fields: [activitprincipaleId], references: [id])
+//   spculationprincipaleId      String?
+//   spculationprincipale        Speculation?     @relation("SpeculationPrincipale", fields: [spculationprincipaleId], references: [id])
+//   superficiedevotreparcellecultu Float?
+//   indiquezlasuperficieenha    Float?
+//   quantitproduction           Float?
+//   prcisezlenombre             Int?
+//   moyendestockage             String?
+//   autresActivites                AutreActivite[]     @relation("EnrollementActivites")
+//   autresSpeculations             AutreSpeculation[]  @relation("EnrollementSpeculations")
+//   createdAt         DateTime          @default(now())
+//   updatedAt         DateTime          @updatedAt
+// }
+
+// model AutreActivite {
+//   id            String      @id @default(uuid())
+//   code          String?
+//   activiteId    String
+//   userId        String?
+//   enrollementId String
+//   activite      Activite    @relation(fields: [activiteId], references: [id])
+//   enrollement   Enrollements @relation("EnrollementActivites", fields: [enrollementId], references: [id])
+//   createdAt     DateTime    @default(now())
+//   updatedAt     DateTime    @updatedAt
+// }
+
+// model AutreSpeculation {
+//   id             String       @id @default(uuid())
+//   code           String?
+//   speculationId  String
+//   userId         String?
+//   enrollementId  String
+//   speculation    Speculation  @relation(fields: [speculationId], references: [id])
+//   enrollement    Enrollements @relation("EnrollementSpeculations", fields: [enrollementId], references: [id])
+//   createdAt      DateTime     @default(now())
+//   updatedAt      DateTime     @updatedAt
+// }
+
+// model EcommerceOrder {
+//   id             String               @id @default(uuid())
+//   ordersNumber   String               @unique // 🆕 Numéro unique de commande
+//   userId         String
+//   status         OrderStatus          @default(PENDING)
+//   paymentStatus  OderPaiementStatus   @default(EN_ATTENTE_DE_PAIEMENT) // ✅ Ajouté ici
+//   paymentMethod  PaymentMethod
+//   deliveryMethod DeliveryMethod
+//   network        Network?             // ✅ Ajouté ici
+//   paiementNumber String?              // ✅ Ajouté ici
+//   amount         Float?
+//   canceledAt     DateTime?
+//   createdAt      DateTime             @default(now())
+//   updatedAt      DateTime             @updatedAt
+//   user           User                 @relation(fields: [userId], references: [id])
+//   items          EcommerceOrderItem[]
+//   addedById      String
+//   addedBy        User                 @relation("AddedByEcommerceOrder", fields: [addedById], references: [id])
+//   reversements       Reversement[]
+// }
+
+// model EcommerceOrderItem {
+//   id               String         @id @default(uuid())
+//   ecommerceOrderId String
+//   ecommerceOrder   EcommerceOrder @relation(fields: [ecommerceOrderId], references: [id])
+//   productId        String
+//   product          Product        @relation(fields: [productId], references: [id])
+//   quantity         Int            @default(1)
+//   prixUnitaire     Float
+//   reverser         Int?           @default(0) // 0 = non reversé, 1 = reversé
+
+// }
+
+// model Activite {
+//   id                  String         @id @default(uuid())
+//   nom       String   @unique
+//   createdAt  DateTime @default(now())
+//   updatedAt  DateTime @updatedAt
+//   activitprincipale   Enrollements[] @relation("ActivitePrincipale")
+//   autresActivites    AutreActivite[]
+// }
+
+// model Speculation {
+//   id                       String         @id @default(uuid())
+//   nom       String   @unique
+//   createdAt  DateTime @default(now())
+//   updatedAt  DateTime @updatedAt
+//   spculationprincipale     Enrollements[] @relation("SpeculationPrincipale")
+//   autreSpeculations        AutreSpeculation[]
+// }
+
+// model FileManager {
+//   id           Int      @id @default(autoincrement())
+//   fileCode     String   @unique
+//   fileName     String
+//   fileMimeType String
+//   fileSize     Int
+//   fileUrl      String
+//   fileType     String // Ex : 'userFiles', 'vehicleFiles', 'menuItemFiles'
+//   targetId     String // UUID de l’élément lié
+//   filePath     String? // <-- nouveau champ optionnel pour stocker le chemin local
+//   createdAt    DateTime @default(now())
+//   updatedAt    DateTime @default(now()) @updatedAt
+// }
+
+// model Notification {
+//   id          String             @id @default(uuid())
+//   userId      String
+//   user        User               @relation(fields: [userId], references: [id])
+//   type        NotificationType
+//   subject     String
+//   content     String
+//   status      NotificationStatus @default(PENDING)
+//   contact     String?
+//   email       String?
+//   pushOptions Json? // pour stocker les options push (deviceId, etc.)
+//   createdAt   DateTime           @default(now())
+//   updatedAt   DateTime           @default(now()) @updatedAt
+// }
+
+
+// model Message {
+//   id        String        @id @default(uuid()) // UUID comme identifiant principal
+//   label     String?
+//   text      String?
+//   imageUrl  String?
+//   timestamp DateTime      @default(now())
+//   sender    MessageSender
+//   senderId   String
+//   senderUser User   @relation("UserMessages", fields: [senderId], references: [id])
+
+//   repliedToId String? // doit être String pour matcher l'id de Message
+//   repliedTo   Message?  @relation("ReplyTo", fields: [repliedToId], references: [id])
+//   replies     Message[] @relation("ReplyTo")
+
+//   lastOrderId String? // UUID d'un Trip, EcommerceOrder ou Delivery (nullable)
+
+//   createdAt DateTime @default(now())
+//   updatedAt DateTime @updatedAt
+// }
+
+
+// model Reversement {
+//   id                 String          @id @default(uuid())
+//   // 🔗 Producteur qui reçoit le reversement
+//   producerId         String
+//   producer           User            @relation("ProducerReversements", fields: [producerId], references: [id])
+//   // 🔗 Commande concernée
+//   orderId            String
+//   order              EcommerceOrder  @relation(fields: [orderId], references: [id])
+//   // 📦 Données financières
+//   totalQuantity      Int
+//   totalAmount        Float
+//   platformCommission Float
+//   producerEarnings   Float
+//   // 🔗 Wallet du producteur
+//   walletId           String
+//   wallet             Wallet          @relation(fields: [walletId], references: [id])
+//   // 🔗 Transaction associée (producteur)
+//   transactionId      String  @unique
+//   transaction        Transaction     @relation(name: "ReversementToTransaction", fields: [transactionId], references: [id])
+//   // 🔹 Code unique du reversement
+//   transactionNumber  String  @unique
+//   createdAt          DateTime        @default(now())
+//   updatedAt          DateTime        @updatedAt
+// }
+
+// model Contact {
+//   id           String   @id @default(cuid())
+//   nomPrenom    String
+//   email        String
+//   phone        String
+//   objets       ContactObjet
+//   contents     String
+//   source       String?   @default("contact_form_agricole")
+//   timestamp    DateTime  @default(now())
+//   @@map("contacts") // nom de table en BD
+// }
+
+
+
+
+

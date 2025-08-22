@@ -1,9 +1,5 @@
 // src/common/guards/jwt-auth.guard.ts
-import {
-    ExecutionContext,
-    ForbiddenException,
-    Injectable,
-} from '@nestjs/common';
+import { ExecutionContext, ForbiddenException,Injectable,} from '@nestjs/common';
 import { AuthGuard } from '@nestjs/passport';
 import { UserStatus } from '@prisma/client';
 import { Observable } from 'rxjs';

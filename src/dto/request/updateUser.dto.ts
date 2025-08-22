@@ -8,6 +8,11 @@ export class UpdateUserDto {
     @IsString()
     name?: string;
 
+    @ApiPropertyOptional({ example: 'john.doe@gmail.com', description: 'Nouveau email' })
+    @IsOptional()
+    @IsString()
+    email?: string;
+
     @ApiPropertyOptional({ example: 'newPassword456', description: 'Nouveau mot de passe (6 caractères min.)' })
     @IsOptional()
     @IsString()

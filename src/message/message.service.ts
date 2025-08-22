@@ -185,7 +185,7 @@ export class MessageService {
                 model: 'Message',
                 page: Number(params.page),
                 limit: Number(params.limit),
-                conditions: { senderId },
+                conditions: {senderId: senderId },
                 selectAndInclude: {
                     select: null,
                     include: {
@@ -197,7 +197,7 @@ export class MessageService {
                 orderBy: { createdAt: 'asc' },
             });
 
-            return new BaseResponse(200, `Messages de l'utilisateur ${senderId} récupérés`, data);
+            return new BaseResponse(200, `Messages de l'utilisateur ${senderId} récupérés avec succes`, data);
         } catch (error) {
             console.error(`Erreur lors de la récupération des messages pour l'utilisateur ${senderId}:`, error);
             throw new InternalServerErrorException('Impossible de récupérer les messages');

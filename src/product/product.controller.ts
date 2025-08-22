@@ -26,10 +26,7 @@ export class ProductController {
     @UseInterceptors( FileFieldsInterceptor([ { name: 'image', maxCount: 1 }, { name: 'autreImage', maxCount: 10 }, ]))
     @ApiResponse({ status: 201, description: 'Produit créé avec succès.' })
     @ApiBody({ description: 'Données pour créer un produit avec fichiers', type: CreateProductDto, })
-    async createProduct( @UploadedFiles() files: { image?: Express.Multer.File[]; autreImage?: Express.Multer.File[]; },
-            @Body() dto: CreateProductDto,
-            @Req() req: Request,
-        ) {
+    async createProduct( @UploadedFiles() files: { image?: Express.Multer.File[]; autreImage?: Express.Multer.File[]; }, @Body() dto: CreateProductDto, @Req() req: Request,) {
             dto.image = files.image?.[0] ?? null;
             dto.autreImage = files.autreImage ?? null;
             const user = req.user as any;
@@ -158,7 +155,7 @@ export class ProductController {
         return this.productService.getProducteurProductStats(code);
     }
 
-    @Get('produit-global-admin-all')
+    @Get('lites/produit-global-admin-all')
     @ApiOperation({ summary: 'Statistiques globales des produits produit produit' })
     @ApiResponse({ status: 200, description: 'Statistiques globales des produits produit produit récupérée avec succès.' })
     async getGlobalProductStats() {

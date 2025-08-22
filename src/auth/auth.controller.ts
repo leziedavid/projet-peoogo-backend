@@ -34,7 +34,7 @@ export class AuthController {
     @UseInterceptors(FileFieldsInterceptor([{ name: 'file', maxCount: 1 }, { name: 'carte', maxCount: 1 }, { name: 'permis', maxCount: 1 }]))
     @ApiBody({ type: RegisterDto })
     @ApiResponse({ status: 201, description: 'Utilisateur enregistré avec succès.' })
-    async register( @UploadedFiles() files: { file?: Express.Multer.File[]; carte?: Express.Multer.File[]; permis?: Express.Multer.File[] }, @Body() dto: RegisterDto,) {
+    async register(@UploadedFiles() files: { file?: Express.Multer.File[]; carte?: Express.Multer.File[]; permis?: Express.Multer.File[] }, @Body() dto: RegisterDto,) {
         dto.file = files.file?.[0] ?? null;
         dto.carte = files.carte?.[0] ?? null;
         dto.permis = files.permis?.[0] ?? null;
@@ -55,7 +55,7 @@ export class AuthController {
     )
     @ApiBody({ type: UpdateUserDto })
     @ApiResponse({ status: 200, description: 'Profil mis à jour.' })
-    async updateUser( @Param('id') id: string, @UploadedFiles() files: { file?: Express.Multer.File[]; carte?: Express.Multer.File[]; permis?: Express.Multer.File[] }, @Body() dto: UpdateUserDto,) {
+    async updateUser(@Param('id') id: string, @UploadedFiles() files: { file?: Express.Multer.File[]; carte?: Express.Multer.File[]; permis?: Express.Multer.File[] }, @Body() dto: UpdateUserDto,) {
         dto.file = files.file?.[0] ?? null;
         dto.carte = files.carte?.[0] ?? null;
         dto.permis = files.permis?.[0] ?? null;
@@ -70,7 +70,7 @@ export class AuthController {
     async login(@Body() dto: LoginDto) {
         return this.authService.login(dto);
     }
-    
+
     @Post('login/by/code/or/phone')
     @ApiOperation({ summary: 'Connexion utilisateur par code ou numéro de téléphone' })
     @ApiBody({ type: LoginByPhoneCode })
@@ -136,7 +136,7 @@ export class AuthController {
     @ApiQuery({ name: 'page', required: false, type: Number, example: 1 })
     @ApiQuery({ name: 'limit', required: false, type: Number, example: 10 })
     @ApiResponse({ status: 200, description: 'Liste des utilisateurs récupérée avec succès.' })
-    async getAllUsersByFilter( @Query() params: PaginationParamsDto, @Body() filters: FilterUserDto, @Req() req: Request,) {
+    async getAllUsersByFilter(@Query() params: PaginationParamsDto, @Body() filters: FilterUserDto, @Req() req: Request,) {
         return this.authService.getAllUsersByFilters(filters, params);
     }
 
@@ -144,11 +144,11 @@ export class AuthController {
     @Patch('validate/:id/:status')
     @ApiOperation({ summary: 'Valider un compte utilisateur' })
     @ApiResponse({ status: 200, description: 'Compte validé.' })
-    async validateCompte( @Param('id') id: string, @Param('status', new ParseEnumPipe(UserStatus)) status: UserStatus,) {
+    async validateCompte(@Param('id') id: string, @Param('status', new ParseEnumPipe(UserStatus)) status: UserStatus,) {
         return this.authService.validateCompte(id, status);
     }
 
-    @UseGuards(JwtAuthGuard)
+    // @UseGuards(JwtAuthGuard)
     @Delete('delete/:id')
     @ApiOperation({ summary: 'Supprimer un utilisateur' })
     @ApiResponse({ status: 200, description: 'Utilisateur supprimé.' })
@@ -222,6 +222,27 @@ export class AuthController {
     async getUserEnrollementData(@Param('code') code: string) {
         return this.authService.getUserEnrollementDataByCode(code);
     }
+
+
+    // Récupérer tous les AGENT_ENROLEUR
+    @UseGuards(JwtAuthGuard)
+    @Get('agents/enroleurs')
+    @ApiOperation({ summary: 'Liste de tous les agents enrôleurs' })
+    @ApiResponse({ status: 200, description: 'Liste des agents enrôleurs récupérée avec succès.' })
+    async getAgentsEnroleurs() {
+        return this.authService.getAgentsEnroleurs();
+    }
+
+    // Récupérer tous les AGENT_CONTROLE
+    @UseGuards(JwtAuthGuard)
+    @Get('agents/controle')
+    @ApiOperation({ summary: 'Liste de tous les agents contrôle' })
+    @ApiResponse({ status: 200, description: 'Liste des agents contrôle récupérée avec succès.' })
+    async getAgentsControle() {
+        return this.authService.getAgentsControle();
+    }
+
+
 
 
 }

@@ -160,5 +160,10 @@ export class EnrollementsController {
     async filterEnrollements( @Body() filters: FilterDto, @Query() params: PaginationParamsDto,) {
         return this.enrollementsService.enrollementFilter(filters, params);
     }
-
+    
 }
+
+// UPDATE public."Enrollements"
+// SET user_controle = NULL
+// WHERE id != '2657941f-e07c-46d7-9851-a1ba732a625c';
+

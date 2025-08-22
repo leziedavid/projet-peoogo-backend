@@ -8,6 +8,7 @@ import { PrismaModule } from 'src/prisma/prisma.module';
 import { CloudinaryService } from 'src/utils/cloudinary.service';
 import { JwtStrategy } from 'src/strategies/jwt.strategy';
 import { FunctionService } from 'src/utils/pagination.service';
+import { LocalStorageService } from 'src/utils/LocalStorageService';
 
 @Module({
   imports: [
@@ -16,10 +17,9 @@ import { FunctionService } from 'src/utils/pagination.service';
       imports: [ConfigModule],
       inject: [ConfigService],
       useFactory: async (config: ConfigService) => {
-        console.log('JWT_SECRET from ConfigService:', config.get<string>('JWT_SECRET'));
         return {
           secret: config.get<string>('JWT_SECRET'),
-          signOptions: { expiresIn: config.get<string>('JWT_EXPIRE') || '3d' },
+          signOptions: { expiresIn: config.get<string>('JWT_ACCESS_EXPIRE') || '15m' }, // par défaut 15m
         };
       }
     }),
@@ -27,7 +27,7 @@ import { FunctionService } from 'src/utils/pagination.service';
     PrismaModule,
   ],
   controllers: [MessageController],
-  providers: [MessageService, CloudinaryService, JwtStrategy, FunctionService],
+  providers: [MessageService, CloudinaryService, JwtStrategy, FunctionService,LocalStorageService],
   exports: [PassportModule, JwtModule],
 })
 export class MessageModule { }

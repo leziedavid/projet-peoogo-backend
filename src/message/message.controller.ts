@@ -123,6 +123,7 @@ export class MessageController {
         @Req() req: Request,
         @Query() pagination: PaginationParamsDto
     ) {
+        console.log(senderId);
         return this.messageService.getMessagesBySenderIdPaginated(senderId, pagination);
     }
 

@@ -1,4 +1,4 @@
-import {Injectable,NotFoundException,InternalServerErrorException,} from '@nestjs/common';
+import { Injectable, NotFoundException, InternalServerErrorException, } from '@nestjs/common';
 import { PrismaService } from 'src/prisma/prisma.service';
 import { CloudinaryService } from 'src/utils/cloudinary.service';
 import { BaseResponse } from 'src/dto/request/base-response.dto';
@@ -12,7 +12,8 @@ import { FunctionService } from 'src/utils/pagination.service';
 import { ControlEnrollementDto } from 'src/dto/request/control-enrollement.dto';
 import * as bcrypt from 'bcrypt';
 import { FilterDto } from 'src/dto/request/filter.dto';
-
+import { getPublicFileUrl } from 'src/utils/helper';
+import { LocalStorageService } from 'src/utils/LocalStorageService';
 
 @Injectable()
 export class EnrollementsService {
@@ -20,7 +21,8 @@ export class EnrollementsService {
         private readonly prisma: PrismaService,
         private readonly cloudinary: CloudinaryService,
         private readonly functionService: FunctionService,
-        
+        private readonly localStorage: LocalStorageService, // injecter ton service
+
     ) { }
 
     /**
@@ -40,7 +42,8 @@ export class EnrollementsService {
 
         if (existingFile?.fileCode) {
             try {
-                await this.cloudinary.deleteFileByPublicId(existingFile.fileCode);
+                // await this.cloudinary.deleteFileByPublicId(existingFile.fileCode);
+                await this.localStorage.deleteFile(existingFile.fileCode);
             } catch (error) {
                 console.warn(`Erreur suppression Cloudinary ${existingFile.fileCode}: ${error.message}`);
             }
@@ -50,8 +53,8 @@ export class EnrollementsService {
         }
 
         // Upload fichier
-        const uploadResult = await this.cloudinary.uploadFile(fileBuffer, folder);
-
+        // const uploadResult = await this.cloudinary.uploadFile(fileBuffer, folder);
+        const uploadResult = await this.localStorage.saveFile(fileBuffer, folder);
         // Sauvegarde en DB
         await this.prisma.fileManager.create({
             data: {
@@ -157,10 +160,10 @@ export class EnrollementsService {
 
 
     private generateNumerolot(): string {
-    // Génère un nombre aléatoire à 10 chiffres
-    const code = Math.floor(1000000000 + Math.random() * 9000000000); // entre 1000000000 et 9999999999
-    return code.toString();
-}
+        // Génère un nombre aléatoire à 10 chiffres
+        const code = Math.floor(1000000000 + Math.random() * 9000000000); // entre 1000000000 et 9999999999
+        return code.toString();
+    }
 
 
     async addNewAutresActivites(
@@ -233,7 +236,7 @@ export class EnrollementsService {
             const code = this.generateCodes();
 
             // Extraire decoupage du dto
-            const { typeCompte, decoupage, photo, photo_document_1, photo_document_2,autresactivite,autresspeculation, ...dataWithoutFiles } = dto;
+            const { typeCompte, decoupage, photo, photo_document_1, photo_document_2, autresactivite, autresspeculation, ...dataWithoutFiles } = dto;
             console.log('photo ok :', photo);
 
             const autresactiviteParsed = this.parseStringOrArray<string>(autresactivite);
@@ -332,9 +335,9 @@ export class EnrollementsService {
 
             // Construction manuelle et sécurisée des données à mettre à jour
             const dataToUpdate: Prisma.EnrollementsUncheckedUpdateInput = {
-                agent_superviseur_id: dto.agent_superviseur_id,
+                agent_superviseur_id: dto.agent_superviseur_id || null,
                 status_dossier: dto.status_dossier,
-                time_enrolment: dto.time_enrolment,
+                time_enrolment: dto.time_enrolment !== undefined  ? dto.time_enrolment : 2,
                 nom: dto.nom,
                 prenom: dto.prenom,
                 datedenaissance: dto.datedenaissance,
@@ -447,7 +450,8 @@ export class EnrollementsService {
 
         for (const file of files) {
             try {
-                await this.cloudinary.deleteFileByPublicId(file.fileCode);
+                // await this.cloudinary.deleteFileByPublicId(file.fileCode);
+                this.localStorage.deleteFile(file.fileCode);
             } catch (error) {
                 console.warn(`Erreur suppression Cloudinary fichier ${file.fileCode}: ${error.message}`);
             }
@@ -481,16 +485,30 @@ export class EnrollementsService {
         }
     }
 
-
     async assignLotIfNeeded(userId: string, params: PaginationParamsDto): Promise<BaseResponse<any>> {
+        
         const { page, limit } = params;
+
+        // 🔍 Récupérer l'utilisateur
+        const user = await this.prisma.user.findUnique({ where: { id: userId } });
+        if (!user) {
+            return new BaseResponse(404, 'Utilisateur introuvable', {});
+        }
+
+        // Vérifier le rôle
+        const allowedRoles = ['ADMIN', 'AGENT_ENROLEUR', 'AGENT_CONTROLE'];
+        if (!allowedRoles.includes(user.role)) {
+            return new BaseResponse(403, 'Vous n\'avez pas droit à cette fonctionnalité', {});
+        }
 
         // Étape 1 : Vérifier si l'utilisateur a déjà un lot attribué
         const hasExistingLot = await this.prisma.enrollements.findFirst({
             where: {
                 user_control_id: userId,
                 is_deleted: false,
-                status_dossier:'NON_TRAITE',
+                status_dossier: 'NON_TRAITE',
+                confirm_validation_control: false,  // uniquement les lots non confirmés
+                validation_control: false,          // uniquement les lots non validés
             },
         });
 
@@ -500,6 +518,8 @@ export class EnrollementsService {
                 where: {
                     user_control_id: null,
                     is_deleted: false,
+                    confirm_validation_control: false,  // uniquement les lots non confirmés
+                    validation_control: false,          // uniquement les lots non validés
                     status_dossier: {
                         in: ['NON_TRAITE', 'ENCOURS'],
                     },
@@ -512,7 +532,7 @@ export class EnrollementsService {
 
 
             if (enrollementsToAssign.length === 0) {
-                return new BaseResponse( 200, 'Aucun enrôlement disponible pour attribution',  this.emptyPaginateResult(page, limit),  );
+                return new BaseResponse(200, 'Aucun enrôlement disponible pour attribution', this.emptyPaginateResult(page, limit),);
             }
 
             const numeroLot = this.generateNumerolot();
@@ -539,7 +559,7 @@ export class EnrollementsService {
             conditions: {
                 is_deleted: false,
                 user_control_id: userId,
-                status_dossier:'NON_TRAITE',
+                status_dossier: 'NON_TRAITE',
             },
             selectAndInclude: {
                 select: null,
@@ -592,9 +612,12 @@ export class EnrollementsService {
 
                 return {
                     ...enrollement,
-                    photo: photo?.fileUrl || null,
-                    document1: document1?.fileUrl || null,
-                    document2: document2?.fileUrl || null,
+                    photo: photo ? getPublicFileUrl(photo.fileUrl) : null,
+                    document1: document1 ? getPublicFileUrl(document1.fileUrl) : null,
+                    document2: document2 ? getPublicFileUrl(document2.fileUrl) : null,
+                    // photo: photo?.fileUrl || null,
+                    // document1: document1?.fileUrl || null,
+                    // document2: document2?.fileUrl || null,
                 };
             })
         );
@@ -605,7 +628,6 @@ export class EnrollementsService {
             numero_lot: enrichedEnrollements[0]?.numero_lot || null,
         });
     }
-
 
     async getPaginatedByAgent(agentId: string, params: PaginationParamsDto): Promise<BaseResponse<any>> {
         const { page, limit } = params;
@@ -669,9 +691,12 @@ export class EnrollementsService {
 
                 return {
                     ...enrollement,
-                    photo: photo?.fileUrl || null,
-                    document1: document1?.fileUrl || null,
-                    document2: document2?.fileUrl || null,
+                    photo: photo ? getPublicFileUrl(photo.fileUrl) : null,
+                    document1: document1 ? getPublicFileUrl(document1.fileUrl) : null,
+                    document2: document2 ? getPublicFileUrl(document2.fileUrl) : null,
+                    // photo: photo?.fileUrl || null,
+                    // document1: document1?.fileUrl || null,
+                    // document2: document2?.fileUrl || null,
                 };
             })
         );
@@ -682,8 +707,7 @@ export class EnrollementsService {
         });
     }
 
-
-    async getAllPaginateOne(userId: string,params: PaginationParamsDto): Promise<BaseResponse<any>> {
+    async getAllPaginateOne(userId: string, params: PaginationParamsDto): Promise<BaseResponse<any>> {
         const { page, limit } = params;
 
         const data = await this.functionService.paginate({
@@ -742,9 +766,14 @@ export class EnrollementsService {
 
                 return {
                     ...enrollement,
-                    photo: photo?.fileUrl || null,
-                    document1: document1?.fileUrl || null,
-                    document2: document2?.fileUrl || null,
+
+                    photo: photo ? getPublicFileUrl(photo.fileUrl) : null,
+                    document1: document1 ? getPublicFileUrl(document1.fileUrl) : null,
+                    document2: document2 ? getPublicFileUrl(document2.fileUrl) : null,
+
+                    // photo: photo?.fileUrl || null,
+                    // document1: document1?.fileUrl || null,
+                    // document2: document2?.fileUrl || null,
                 };
             })
         );
@@ -968,9 +997,9 @@ export class EnrollementsService {
         return new BaseResponse(200, 'Statistiques des enrôlements (admin)', statsByStatus);
     }
 
-    async controlEnrollement( enrollementId: string, userControlId: string, dto: ControlEnrollementDto): Promise<BaseResponse<any>> {
-        
-        const enrollement = await this.prisma.enrollements.findUnique({  where: { id: enrollementId }, });
+    async controlEnrollement(enrollementId: string, userControlId: string, dto: ControlEnrollementDto): Promise<BaseResponse<any>> {
+
+        const enrollement = await this.prisma.enrollements.findUnique({ where: { id: enrollementId }, });
 
         if (!enrollement) {
             throw new NotFoundException('Enrôlement introuvable');
@@ -1003,11 +1032,16 @@ export class EnrollementsService {
         }
         console.log('updated:', enrollement.code + '@app.local');
 
-        return new BaseResponse( 200, `Dossier mis à jour avec le statut ${status_dossier}`, updated );
+        return new BaseResponse(200, `Dossier mis à jour avec le statut ${status_dossier}`, updated);
     }
 
+    private generateAccountNumber(): string {
+        return `NR ${Math.floor(Math.random() * 1000000000000)}`; // Exemple de génération de numéro unique
+    }
 
     private async createUserFromEnrollement(enrollement: Enrollements) {
+
+        const accountNumberGenearate = this.generateAccountNumber();
         const existingUser = await this.prisma.user.findFirst({
             where: { codeGenerate: enrollement.code },
         });
@@ -1029,6 +1063,7 @@ export class EnrollementsService {
                 status: 'ACTIVE',
                 phoneNumber: enrollement.numroprincipal,
                 typeCompte: enrollement.TypeCompte, // ✅ Ajout ici
+                wallet: { create: { balance: 0, accountNumber: accountNumberGenearate } },
             },
         });
     }
@@ -1036,7 +1071,7 @@ export class EnrollementsService {
     // filtres generale
 
     async enrollementFilter(filters: FilterDto, params: PaginationParamsDto): Promise<BaseResponse<any>> {
-        
+
         const { page, limit } = params;
         const { modeAffichage } = filters;
         // console.log('filters:', filters);
@@ -1060,6 +1095,7 @@ export class EnrollementsService {
 
         // Cas modeAffichage = tableau
         if (modeAffichage === 'tableau') {
+
             const data = await this.functionService.paginate({
                 model: 'Enrollements',
                 page: Number(page),
@@ -1093,7 +1129,40 @@ export class EnrollementsService {
                 orderBy: { createdAt: 'desc' },
             });
 
-            return new BaseResponse(200, 'Résultat filtré (tableau)', data);
+
+            const enrichedEnrollements = await Promise.all(
+                data.data.map(async (enrollement) => {
+                    const [photo, document1, document2] = await Promise.all([
+                        this.prisma.fileManager.findFirst({
+                            where: { targetId: enrollement.id, fileType: 'enrollements_photo' },
+                            orderBy: { createdAt: 'desc' },
+                        }),
+                        this.prisma.fileManager.findFirst({
+                            where: { targetId: enrollement.id, fileType: 'enrollements_photo_document_1' },
+                            orderBy: { createdAt: 'desc' },
+                        }),
+                        this.prisma.fileManager.findFirst({
+                            where: { targetId: enrollement.id, fileType: 'enrollements_photo_document_2' },
+                            orderBy: { createdAt: 'desc' },
+                        }),
+                    ]);
+
+                    return {
+                        ...enrollement,
+                        photo: photo ? getPublicFileUrl(photo.fileUrl) : null,
+                        document1: document1 ? getPublicFileUrl(document1.fileUrl) : null,
+                        document2: document2 ? getPublicFileUrl(document2.fileUrl) : null,
+                        // photo: photo?.fileUrl || null,
+                        // document1: document1?.fileUrl || null,
+                        // document2: document2?.fileUrl || null,
+                    };
+                })
+            );
+
+            return new BaseResponse(200, 'Résultat filtré (tableau)', {
+                ...data,
+                data: enrichedEnrollements, // on remplace la propriété data par les URLs enrichies
+            });
         }
 
         // Cas modeAffichage = carte
@@ -1139,6 +1208,41 @@ export class EnrollementsService {
         throw new NotFoundException('Mode d\'affichage non reconnu');
     }
 
+    async confirmValidation(userControlId: string, numeroLot: string): Promise<BaseResponse<any>> {
+        if (!userControlId || !numeroLot) {
+            return new BaseResponse(400, 'userControlId et numeroLot sont requis', null);
+        }
 
+        // Récupérer les enrôlements correspondant
+        const enrollements = await this.prisma.enrollements.findMany({
+            where: {
+                user_control_id: userControlId,
+                numero_lot: numeroLot,
+            },
+        });
+
+        if (!enrollements.length) {
+            return new BaseResponse(404, 'Aucun enrôlement trouvé pour cet agent et ce lot', null);
+        }
+
+        const now = new Date();
+
+        // Mettre à jour tous les enrôlements
+        await Promise.all(
+            enrollements.map(async (enrollement) => {
+                await this.prisma.enrollements.update({
+                    where: { id: enrollement.id },
+                    data: {
+                        confirm_validation_control: true,
+                        validation_control: true,
+                        date_validation_control: now,
+                        date_confirm_validation_control: now,
+                    },
+                });
+            }),
+        );
+
+        return new BaseResponse(200, 'Lot validé avec succès', { updatedCount: enrollements.length });
+    }
 
 }

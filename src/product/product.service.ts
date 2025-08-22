@@ -1,4 +1,4 @@
-import {Injectable,NotFoundException,InternalServerErrorException,BadRequestException,ForbiddenException,} from '@nestjs/common';
+import { Injectable, NotFoundException, InternalServerErrorException, BadRequestException, ForbiddenException, } from '@nestjs/common';
 import { PrismaService } from 'src/prisma/prisma.service';
 import { CloudinaryService } from 'src/utils/cloudinary.service';
 import { CreateProductDto, UpdateProductDto } from 'src/dto/request/product.dto';
@@ -11,6 +11,8 @@ import { Prisma, ProductStatus, TypeCompte } from '@prisma/client';
 import { FunctionService, PaginateOptions } from 'src/utils/pagination.service';
 import { MarketProduitFilterDto } from 'src/dto/request/marketProduitFilter.dto';
 import { subHours, subDays } from 'date-fns';
+import { getPublicFileUrl } from 'src/utils/helper';
+import { LocalStorageService } from 'src/utils/LocalStorageService';
 
 @Injectable()
 export class ProductService {
@@ -18,6 +20,7 @@ export class ProductService {
         private readonly prisma: PrismaService,
         private readonly cloudinary: CloudinaryService,
         private readonly functionService: FunctionService,
+        private readonly localStorage: LocalStorageService,
     ) { }
 
     private async generateUniqueProductCode(): Promise<string> {
@@ -66,7 +69,9 @@ export class ProductService {
 
         if (existingFile?.fileCode) {
             try {
-                await this.cloudinary.deleteFileByPublicId(existingFile.fileCode);
+                // await this.cloudinary.deleteFileByPublicId(existingFile.fileCode);
+                await this.localStorage.deleteFile(existingFile.fileCode);
+
             } catch (error) {
                 console.warn(`Erreur suppression Cloudinary ${existingFile.fileCode}: ${error.message}`);
             }
@@ -76,7 +81,8 @@ export class ProductService {
         }
 
         // Upload fichier
-        const uploadResult = await this.cloudinary.uploadFile(fileBuffer, folder);
+        // const uploadResult = await this.cloudinary.uploadFile(fileBuffer, folder);
+        const uploadResult = await this.localStorage.saveFile(fileBuffer, folder);
 
         // Sauvegarde en DB
         await this.prisma.fileManager.create({
@@ -88,7 +94,7 @@ export class ProductService {
         });
     }
 
-    private async getProductImages(productId: string): Promise<string[]> {
+    private async getProductImages1(productId: string): Promise<string[]> {
         const files = await this.prisma.fileManager.findMany({
             where: {
                 fileType: 'productFiles',
@@ -99,6 +105,19 @@ export class ProductService {
 
         return files.map(file => file.fileUrl);
     }
+
+    private async getProductImages(productId: string): Promise<string[]> {
+    const files = await this.prisma.fileManager.findMany({
+        where: {
+            fileType: 'productFiles',
+            targetId: productId,
+        },
+        orderBy: { createdAt: 'asc' },
+    });
+
+    // Transforme les fileUrl relatifs en URL publiques complètes
+    return files.map(file => getPublicFileUrl(file.fileUrl));
+}
 
     private async getUserByCodeGenerate(rawCode: string): Promise<any[]> {
 
@@ -204,7 +223,6 @@ export class ProductService {
         ];
 
         const cleanCode = rawCode.replace(/\s+/g, '');
-
         // Recherche de l'utilisateur avec typeCompte autorisé
         const user = await this.prisma.user.findFirst({
             where: {
@@ -286,7 +304,8 @@ export class ProductService {
 
             // Étape 2 : Upload image principale (si présente)
             if (image) {
-                const uploadResult = await this.cloudinary.uploadFile(image.buffer, 'products');
+                // const uploadResult = await this.cloudinary.uploadFile(image.buffer, 'products');
+                const uploadResult = await this.localStorage.saveFile(image.buffer, 'products');
                 await this.prisma.product.update({
                     where: { id: product.id },
                     data: { imageUrl: uploadResult.fileUrl },
@@ -296,6 +315,7 @@ export class ProductService {
             // Étape 3 : Upload autres images
             if (autreImage && autreImage.length > 0) {
                 for (const file of autreImage) {
+                    
                     await this.uploadAndSaveSingleFile(product.id, file.buffer, 'productFiles', 'products');
                 }
             }
@@ -364,7 +384,10 @@ export class ProductService {
 
             if (existingFile?.fileCode) {
                 try {
-                    await this.cloudinary.deleteFileByPublicId(existingFile.fileCode);
+                    
+                    // await this.cloudinary.deleteFileByPublicId(existingFile.fileCode);
+                    await this.localStorage.deleteFile(existingFile.fileCode);
+
                 } catch (error) {
                     console.warn(`Erreur suppression Cloudinary ${existingFile.fileCode}: ${error.message}`);
                 }
@@ -375,7 +398,8 @@ export class ProductService {
             }
 
             // Upload nouvelle image principale
-            const uploadResult = await this.cloudinary.uploadFile(image.buffer, 'products');
+            // const uploadResult = await this.cloudinary.uploadFile(image.buffer, 'products');
+            const uploadResult = await this.localStorage.saveFile(image.buffer, 'products');
             const imageUrl = uploadResult.fileUrl;
 
             // Mise à jour du produit avec la nouvelle image principale
@@ -397,8 +421,6 @@ export class ProductService {
 
         return new BaseResponse(200, 'Produit mis à jour avec succès', null);
     }
-
-
 
     // ✅ Mettre à jour la période de disponibilité
     async updateAvailability(id: string,disponibleDe: string, disponibleJusqua: string): Promise<BaseResponse<{ productId: string }>> {
@@ -468,10 +490,6 @@ export class ProductService {
             throw new NotFoundException('Produit introuvable');
         }
 
-        if (product.addedById !== userId) {
-            throw new ForbiddenException('Vous n’êtes pas autorisé à supprimer ce produit');
-        }
-
         // Étape 1 : Supprimer les fichiers associés au produit dans Cloudinary et en DB
         const files = await this.prisma.fileManager.findMany({
             where: { targetId: id },
@@ -480,7 +498,8 @@ export class ProductService {
         for (const file of files) {
             try {
                 if (file.fileCode) {
-                    await this.cloudinary.deleteFileByPublicId(file.fileCode);
+                    // await this.cloudinary.deleteFileByPublicId(file.fileCode);
+                    await this.localStorage.deleteFile(file.fileCode);
                 }
             } catch (error) {
                 console.warn(`Erreur suppression fichier ${file.fileCode} : ${error.message}`);
@@ -548,10 +567,13 @@ export class ProductService {
                 const isDisponible = new Date(product.disponibleDe) <= now && new Date(product.disponibleJusqua) >= now;
                 const images = await this.getProductImages(product.id);
                 const userInfo = await this.getUserByCodeGenerate(product.codeUsers);
+                // Transforme l'image principale du produit
+                const mainImageUrl = product.imageUrl ? getPublicFileUrl(product.imageUrl) : null;
 
                 return {
                     ...product,
                     statut: isDisponible ? 'disponible' : 'indisponible',
+                    imageUrl: mainImageUrl, // image principale transformée
                     images,
                     userInfo,
                 };
@@ -598,10 +620,11 @@ export class ProductService {
                 const isDisponible = new Date(product.disponibleDe) <= now && new Date(product.disponibleJusqua) >= now;
                 const images = await this.getProductImages(product.id);
                 const userInfo = await this.getUserByCodeGenerateOne(product.codeUsers);
-
+                const mainImageUrl = product.imageUrl ? getPublicFileUrl(product.imageUrl) : null;
                 return {
                     ...product,
                     statut: isDisponible ? 'disponible' : 'indisponible',
+                    imageUrl: mainImageUrl, // image principale transformée
                     images,
                     userInfo,
                 };
@@ -645,10 +668,12 @@ export class ProductService {
                 const isDisponible = new Date(product.disponibleDe) <= now && new Date(product.disponibleJusqua) >= now;
                 const images = await this.getProductImages(product.id);
                 const userInfo = await this.getUserByCodeGenerateOne(product.codeUsers);
+                const mainImageUrl = product.imageUrl ? getPublicFileUrl(product.imageUrl) : null;
 
                 return {
                     ...product,
                     statut: isDisponible ? 'disponible' : 'indisponible',
+                    imageUrl: mainImageUrl, // image principale transformée
                     images,
                     userInfo,
                 };
@@ -773,10 +798,11 @@ export class ProductService {
                     new Date(product.disponibleDe) <= now && new Date(product.disponibleJusqua) >= now;
                 const images = await this.getProductImages(product.id);
                 const userInfo = await this.getUserByCodeGenerateOne(product.codeUsers);
-
+                const mainImageUrl = product.imageUrl ? getPublicFileUrl(product.imageUrl) : null;
                 return {
                     ...product,
                     statut: isDisponible ? 'disponible' : 'indisponible',
+                    imageUrl: mainImageUrl, // image principale transformée
                     images,
                     userInfo,
                 };
@@ -785,7 +811,6 @@ export class ProductService {
 
         return new BaseResponse(200, 'Produits filtrés avec succès', data);
     }
-
 
     async geProduitstById(id: string): Promise<BaseResponse<any>> {
         try {
@@ -819,7 +844,7 @@ export class ProductService {
 
             // Récupération des images
             const images = await this.getProductImages(product.id);
-
+            const mainImageUrl = product.imageUrl ? getPublicFileUrl(product.imageUrl) : null;
             // Récupération des infos utilisateur
             const userInfo = await this.getUserByCodeGenerateOne(product.codeUsers);
 
@@ -827,6 +852,7 @@ export class ProductService {
             const fullProduct = {
                 ...product,
                 statut: isDisponible ? 'disponible' : 'indisponible',
+                imageUrl: mainImageUrl, // image principale transformée
                 images,
                 userInfo,
             };
@@ -870,15 +896,18 @@ export class ProductService {
 
         const data = await this.functionService.paginate(paginateOptions);
         // Ajoute le statut et les images à chaque produit
+        
         data.data = await Promise.all(
             data.data.map(async (product) => {
                 const isDisponible = new Date(product.disponibleDe) <= now && new Date(product.disponibleJusqua) >= now;
                 const allimages = await this.getProductImages(product.id);
-                const userInfo = await this.getUserByCodeGenerate(code);
+                const userInfo = await this.getValidUserByCode(product.codeUsers);
+                const mainImageUrl = product.imageUrl ? getPublicFileUrl(product.imageUrl) : null;
 
                 return {
                     ...product,
                     statut: isDisponible ? 'disponible' : 'indisponible',
+                    imageUrl: mainImageUrl, // image principale transformée
                     allimages,
                     userInfo,
                 };
@@ -930,10 +959,12 @@ export class ProductService {
                     new Date(product.disponibleJusqua) >= now;
 
                 const images = await this.getProductImages(product.id);
+                const mainImageUrl = product.imageUrl ? getPublicFileUrl(product.imageUrl) : null;
 
                 return {
                     ...product,
                     statut: isDisponible ? 'disponible' : 'indisponible',
+                    imageUrl: mainImageUrl, // image principale transformée
                     images,
                     userInfo,
                 };

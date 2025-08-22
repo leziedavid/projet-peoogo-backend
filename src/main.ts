@@ -1,10 +1,20 @@
 import { NestFactory } from '@nestjs/core';
 import { AppModule } from './app.module';
 import { SwaggerModule, DocumentBuilder } from '@nestjs/swagger';
+import { join } from 'path';
+import { NestExpressApplication } from '@nestjs/platform-express';
 
 async function bootstrap() {
-  const app = await NestFactory.create(AppModule);
-  app.setGlobalPrefix('api');
+
+  // const app = await NestFactory.create(AppModule);
+    // 👇 précise que ton app utilise Express
+  const app = await NestFactory.create<NestExpressApplication>(AppModule);
+  app.setGlobalPrefix('api/v1');
+  
+    // 🔥 Sert /app/uploads comme dossier statique
+  app.useStaticAssets(join(process.env.FILE_STORAGE_PATH || '/app/uploads'), {
+    prefix: '/uploads/',
+  });
 
   const config = new DocumentBuilder()
     .setTitle('PROJET PEEGO')

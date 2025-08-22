@@ -6,4 +6,5 @@ export interface EnrichedProducer {
     typeCompte?: string | null;
     totalQuantity: number;
     totalAmount: number;
+    reverser: number;
 }

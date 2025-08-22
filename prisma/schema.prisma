@@ -51,6 +51,8 @@ enum NiveauInstruction {
   SECONDAIRE
   SUPERIEUR
   ALPHABETISE
+  UNIVERSITAIRE
+  SAIS_LIRE_ET_ECRIRE
 }
 
 enum StatusDossier {
@@ -131,6 +133,22 @@ enum MessageSender {
   support
 }
 
+/// Enum pour les objets agricoles
+enum ContactObjet {
+  achat_produits
+  vente_produits
+  formation_agricole
+  financement_agricole
+  equipements_agricoles
+  conseil_technique
+  certification_bio
+  transformation_produits
+  marche_producteurs
+  innovation_agricole
+  partenariat_cooperatives
+  assurance_agricole
+  autre
+}
 
 // TABLES
 model District {
@@ -146,7 +164,7 @@ model Region {
   nom          String
   statut Boolean? @default(true)
   districtId   String
-  district     District   @relation(fields: [districtId], references: [id])
+  district     District   @relation(fields: [districtId], references: [id], onDelete: Cascade)
   departments  Department[]
   decoupages   Decoupage[]
 }
@@ -156,7 +174,7 @@ model Department {
   nom         String
   statut Boolean? @default(true)
   regionId    String
-  region      Region      @relation(fields: [regionId], references: [id])
+  region      Region      @relation(fields: [regionId], references: [id], onDelete: Cascade)
   sousPrefectures SousPrefecture[]
   decoupages  Decoupage[]
 }
@@ -166,7 +184,7 @@ model SousPrefecture {
   nom           String
   statut Boolean? @default(true)
   departmentId  String
-  department    Department   @relation(fields: [departmentId], references: [id])
+  department    Department   @relation(fields: [departmentId], references: [id], onDelete: Cascade)
   localites     Localite[]
   decoupages    Decoupage[]
 }
@@ -176,7 +194,7 @@ model Localite {
   nom               String
   statut Boolean? @default(true)
   sousPrefectureId String
-  sousPrefecture    SousPrefecture @relation(fields: [sousPrefectureId], references: [id])
+  sousPrefecture    SousPrefecture @relation(fields: [sousPrefectureId], references: [id], onDelete: Cascade)
   decoupages        Decoupage[]
 }
 
@@ -188,11 +206,11 @@ model Decoupage {
   departmentId     String
   sousPrefectureId String
   localiteId       String
-  district         District       @relation(fields: [districtId], references: [id])
-  region           Region         @relation(fields: [regionId], references: [id])
-  department       Department     @relation(fields: [departmentId], references: [id])
-  sousPrefecture   SousPrefecture @relation(fields: [sousPrefectureId], references: [id])
-  localite         Localite       @relation(fields: [localiteId], references: [id])
+  district         District       @relation(fields: [districtId], references: [id], onDelete: Cascade)
+  region           Region         @relation(fields: [regionId], references: [id], onDelete: Cascade)
+  department       Department     @relation(fields: [departmentId], references: [id], onDelete: Cascade)
+  sousPrefecture   SousPrefecture @relation(fields: [sousPrefectureId], references: [id], onDelete: Cascade)
+  localite         Localite       @relation(fields: [localiteId], references: [id], onDelete: Cascade)
   produits         Product[]
   enrollements     Enrollements[] @relation("DecoupageEnrollements")
 }
@@ -223,12 +241,14 @@ model User {
   transactions         Transaction[]
   notifications      Notification[]
   messagesSent Message[] @relation("UserMessages")
+  reversements       Reversement[]   @relation("ProducerReversements")
+
 }
 
 model Wallet {
   id            String        @id @default(uuid())
   balance       Int           @default(0)
-  user          User          @relation(fields: [userId], references: [id])
+  user          User          @relation(fields: [userId], references: [id], onDelete: Cascade)
   userId        String        @unique
   transactions  Transaction[]
   paymentMethod PaymentMethod @default(MOBILE_MONEY)
@@ -236,6 +256,7 @@ model Wallet {
   createdAt     DateTime      @default(now())
   updatedAt     DateTime      @default(now()) @updatedAt
   accountNumber String        @unique // Numéro de compte unique
+  reversements       Reversement[]
 }
 
 model Transaction {
@@ -244,13 +265,14 @@ model Transaction {
   transactionNumber String?         @unique // 🆕 Optionnel avec @unique
   type              TransactionType
   walletId          String
-  wallet            Wallet          @relation(fields: [walletId], references: [id])
-  userId            String // ✅ Ajouté pour tracer l’utilisateur concerné
-  user              User            @relation(fields: [userId], references: [id])
+  wallet            Wallet          @relation(fields: [walletId], references: [id], onDelete: Cascade)
+  userId            String // ✅ Ajouté pour tracer l'utilisateur concerné
+  user              User            @relation(fields: [userId], references: [id], onDelete: Cascade)
   reference         String? // ✅ Ex: ID de commande, ID de trajet...
   description       String? // ✅ Ex: "Commission 18% prélevée pour la commande XYZ"
   createdAt         DateTime        @default(now())
   updatedAt         DateTime        @default(now()) @updatedAt
+  reversement       Reversement? @relation(name: "ReversementToTransaction")
 }
 
 model Product {
@@ -266,7 +288,7 @@ model Product {
   paymentMethod       String              // Méthode de paiement (e.g. Espèce, Orange Money)
   saleType            String              // Type de vente (gros/détail)
   status              ProductStatus       @default(ACTIVE)
-  typeActeur          TypeCompte          // Enumération du type d’acteur
+  typeActeur          TypeCompte          // Enumération du type d'acteur
   disponibleDe        DateTime            // Date de début de disponibilité
   disponibleJusqua    DateTime            // Date de fin
   image               String?             // Image principale (optionnelle)
@@ -275,9 +297,9 @@ model Product {
   addedById           String              // Peut être un agent
   createdAt           DateTime            @default(now())
   updatedAt           DateTime            @updatedAt
-  addedBy             User                @relation("AddedByProduct", fields: [addedById], references: [id])
+  addedBy             User                @relation("AddedByProduct", fields: [addedById], references: [id], onDelete: Cascade)
   decoupageId         String
-  decoupage           Decoupage           @relation(fields: [decoupageId], references: [id])
+  decoupage           Decoupage           @relation(fields: [decoupageId], references: [id], onDelete: Cascade)
   EcommerceOrderItem  EcommerceOrderItem[]
 }
 
@@ -286,7 +308,7 @@ model Enrollements {
   code                        String           @unique
   TypeCompte                  TypeCompte
   agent_id                    String
-  agent_enroleur              User?             @relation("AgentEnroleur", fields: [agent_id], references: [id])
+  agent_enroleur              User?             @relation("AgentEnroleur", fields: [agent_id], references: [id], onDelete: Cascade)
   agent_superviseur_id        String?
   agent_superviseur           User ?            @relation("AgentSuperviseur", fields: [agent_superviseur_id], references: [id])
   user_control_id             String?
@@ -298,7 +320,7 @@ model Enrollements {
   date_confirm_validation_control DateTime?
   commentaire_controle        String? // Champ pour les motifs de rejet saisis par le contrôleur
   is_deleted                  Boolean          @default(false)
-  is_select_lot               String? // id de l’agent qui traite
+  is_select_lot               String? // id de l'agent qui traite
   status_dossier              StatusDossier?
   time_enrolment              Int?
   start_date                  DateTime?
@@ -316,7 +338,7 @@ model Enrollements {
   languelocaleparle           String
   autreslanguelocaleparle     String?
   decoupageId                 String
-  decoupage                   Decoupage        @relation("DecoupageEnrollements", fields: [decoupageId], references: [id])
+  decoupage                   Decoupage        @relation("DecoupageEnrollements", fields: [decoupageId], references: [id], onDelete: Cascade)
   campementquartier           String?
   coordonneesgeo              String?
   activitprincipaleId         String?
@@ -340,8 +362,8 @@ model AutreActivite {
   activiteId    String
   userId        String?
   enrollementId String
-  activite      Activite    @relation(fields: [activiteId], references: [id])
-  enrollement   Enrollements @relation("EnrollementActivites", fields: [enrollementId], references: [id])
+  activite      Activite    @relation(fields: [activiteId], references: [id], onDelete: Cascade)
+  enrollement   Enrollements @relation("EnrollementActivites", fields: [enrollementId], references: [id], onDelete: Cascade)
   createdAt     DateTime    @default(now())
   updatedAt     DateTime    @updatedAt
 }
@@ -352,8 +374,8 @@ model AutreSpeculation {
   speculationId  String
   userId         String?
   enrollementId  String
-  speculation    Speculation  @relation(fields: [speculationId], references: [id])
-  enrollement    Enrollements @relation("EnrollementSpeculations", fields: [enrollementId], references: [id])
+  speculation    Speculation  @relation(fields: [speculationId], references: [id], onDelete: Cascade)
+  enrollement    Enrollements @relation("EnrollementSpeculations", fields: [enrollementId], references: [id], onDelete: Cascade)
   createdAt      DateTime     @default(now())
   updatedAt      DateTime     @updatedAt
 }
@@ -372,20 +394,23 @@ model EcommerceOrder {
   canceledAt     DateTime?
   createdAt      DateTime             @default(now())
   updatedAt      DateTime             @updatedAt
-  user           User                 @relation(fields: [userId], references: [id])
+  user           User                 @relation(fields: [userId], references: [id], onDelete: Cascade)
   items          EcommerceOrderItem[]
   addedById      String
-  addedBy        User                 @relation("AddedByEcommerceOrder", fields: [addedById], references: [id])
+  addedBy        User                 @relation("AddedByEcommerceOrder", fields: [addedById], references: [id], onDelete: Cascade)
+  reversements       Reversement[]
 }
 
 model EcommerceOrderItem {
   id               String         @id @default(uuid())
   ecommerceOrderId String
-  ecommerceOrder   EcommerceOrder @relation(fields: [ecommerceOrderId], references: [id])
+  ecommerceOrder   EcommerceOrder @relation(fields: [ecommerceOrderId], references: [id], onDelete: Cascade)
   productId        String
-  product          Product        @relation(fields: [productId], references: [id])
+  product          Product        @relation(fields: [productId], references: [id], onDelete: Cascade)
   quantity         Int            @default(1)
   prixUnitaire     Float
+  reverser         Int?           @default(0) // 0 = non reversé, 1 = reversé
+
 }
 
 model Activite {
@@ -414,7 +439,8 @@ model FileManager {
   fileSize     Int
   fileUrl      String
   fileType     String // Ex : 'userFiles', 'vehicleFiles', 'menuItemFiles'
-  targetId     String // UUID de l’élément lié
+  targetId     String // UUID de l'élément lié
+  filePath     String? // <-- nouveau champ optionnel pour stocker le chemin local
   createdAt    DateTime @default(now())
   updatedAt    DateTime @default(now()) @updatedAt
 }
@@ -422,7 +448,7 @@ model FileManager {
 model Notification {
   id          String             @id @default(uuid())
   userId      String
-  user        User               @relation(fields: [userId], references: [id])
+  user        User               @relation(fields: [userId], references: [id], onDelete: Cascade)
   type        NotificationType
   subject     String
   content     String
@@ -443,7 +469,7 @@ model Message {
   timestamp DateTime      @default(now())
   sender    MessageSender
   senderId   String
-  senderUser User   @relation("UserMessages", fields: [senderId], references: [id])
+  senderUser User   @relation("UserMessages", fields: [senderId], references: [id], onDelete: Cascade)
 
   repliedToId String? // doit être String pour matcher l'id de Message
   repliedTo   Message?  @relation("ReplyTo", fields: [repliedToId], references: [id])
@@ -456,3 +482,39 @@ model Message {
 }
 
 
+model Reversement {
+  id                 String          @id @default(uuid())
+  // 🔗 Producteur qui reçoit le reversement
+  producerId         String
+  producer           User            @relation("ProducerReversements", fields: [producerId], references: [id], onDelete: Cascade)
+  // 🔗 Commande concernée
+  orderId            String
+  order              EcommerceOrder  @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  // 📦 Données financières
+  totalQuantity      Int
+  totalAmount        Float
+  platformCommission Float
+  producerEarnings   Float
+  // 🔗 Wallet du producteur
+  walletId           String
+  wallet             Wallet          @relation(fields: [walletId], references: [id], onDelete: Cascade)
+  // 🔗 Transaction associée (producteur)
+  transactionId      String  @unique
+  transaction        Transaction     @relation(name: "ReversementToTransaction", fields: [transactionId], references: [id], onDelete: Cascade)
+  // 🔹 Code unique du reversement
+  transactionNumber  String  @unique
+  createdAt          DateTime        @default(now())
+  updatedAt          DateTime        @updatedAt
+}
+
+model Contact {
+  id           String   @id @default(cuid())
+  nomPrenom    String
+  email        String
+  phone        String
+  objets       ContactObjet
+  contents     String
+  source       String?   @default("contact_form_agricole")
+  timestamp    DateTime  @default(now())
+  @@map("contacts") // nom de table en BD
+}
