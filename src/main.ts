@@ -27,6 +27,7 @@ async function bootstrap() {
     'https://api.peoogo.com',
     'https://backend.peoogo.com',
     'https://dev.peoogo.com',
+    'http://localhost:3000', // ✅ ton front Next.js
   ];
   app.enableCors({
     origin: allowedOrigins,

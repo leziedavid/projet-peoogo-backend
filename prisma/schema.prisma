@@ -43,6 +43,7 @@ enum TypeCompte {
   SUPPERVISEUR
   UTILISATEUR
   ADMINISTRATEUR
+  ELEVEURS
 }
 
 enum NiveauInstruction {
