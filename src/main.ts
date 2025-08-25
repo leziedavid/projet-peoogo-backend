@@ -5,23 +5,43 @@ import { join } from 'path';
 import { NestExpressApplication } from '@nestjs/platform-express';
 
 async function bootstrap() {
-
-  // const app = await NestFactory.create(AppModule);
-    // 👇 précise que ton app utilise Express
+  // Création de l'application Express
   const app = await NestFactory.create<NestExpressApplication>(AppModule);
+
+  // ----------------------------
+  // Configuration globale
+  // ----------------------------
   app.setGlobalPrefix('api/v1');
-  
-    // 🔥 Sert /app/uploads comme dossier statique
+
+  // Dossier statique pour les uploads
   app.useStaticAssets(join(process.env.FILE_STORAGE_PATH || '/app/uploads'), {
     prefix: '/uploads/',
   });
 
+  // ⚡ Indiquer à Express que l'app est derrière un proxy (Caddy)
+  app.set('trust proxy', true);
+
+  // CORS sécurisé
+  const allowedOrigins = [
+    'https://peoogo.com',
+    'https://api.peoogo.com',
+    'https://backend.peoogo.com',
+    'https://dev.peoogo.com',
+  ];
+  app.enableCors({
+    origin: allowedOrigins,
+    credentials: true,
+  });
+
+  // ----------------------------
+  // Swagger
+  // ----------------------------
   const config = new DocumentBuilder()
     .setTitle('PROJET PEEGO')
     .setDescription('API POUR LE PROJET PEEGO')
     .setVersion('1.0')
     .addTag('PEEGO')
-    .addBearerAuth( // 🔐 Ajout du support pour JWT
+    .addBearerAuth(
       {
         type: 'http',
         scheme: 'bearer',
@@ -30,15 +50,29 @@ async function bootstrap() {
         description: 'Entrez le token JWT',
         in: 'header',
       },
-      'access-token', // nom de la sécurité à réutiliser avec @ApiBearerAuth('access-token')
+      'access-token',
     )
+    .addServer('https://api.peoogo.com', 'Production')
+    .addServer('https://backend.peoogo.com', 'Test backend')
+    .addServer('https://dev.peoogo.com', 'Dev')
+    .addServer('http://localhost:4000', 'Local')
     .build();
 
   const document = SwaggerModule.createDocument(app, config);
-  SwaggerModule.setup('api', app, document);
 
-  app.enableCors();
+  // Swagger accessible sur /api
+  SwaggerModule.setup('api', app, document, {
+    swaggerOptions: {
+      persistAuthorization: true, // Garde le token entre les refresh
+    },
+  });
 
-  await app.listen(4000);
+  // ----------------------------
+  // Lancer le serveur
+  // ----------------------------
+  const port = parseInt(process.env.PORT, 10) || 4000;
+  await app.listen(port);
+  console.log(`🚀 API running on port ${port}`);
 }
+
 bootstrap();
