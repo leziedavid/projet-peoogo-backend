@@ -638,7 +638,8 @@ export class EnrollementsService {
             limit: Number(limit),
             conditions: {
                 is_deleted: false,
-                agent_id: agentId,       // Filtre ici par agent_id
+                agent_id: agentId,       // Filtre ici par agent_id   VAL
+                status_dossier: { in: [StatusDossier.REJ, StatusDossier.DOUBLON,StatusDossier.IMAGE_INCOR, StatusDossier.DOUBLON_NUMBER] }
             },
             selectAndInclude: {
                 select: null,

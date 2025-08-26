@@ -39,6 +39,10 @@ export class AuthService {
         return `NR ${Math.floor(Math.random() * 1000000000000)}`; // Exemple de génération de numéro unique
     }
 
+    private generateCodes(): string {
+        const randomNumber = Math.floor(1000 + Math.random() * 9000); // Nombre aléatoire entre 1000 et 9999
+        return `PEO${randomNumber}#`;
+    }
     /** Enregistrement d’un nouvel utilisateur CloudinaryService */
     async register2(dto: RegisterDto): Promise<BaseResponse<{ userId: string }>> {
 
@@ -92,6 +96,11 @@ export class AuthService {
 
         const hashed = await bcrypt.hash(dto.password, 10);
         const passwordGenerat: string | null = dto.password ? dto.password : null;
+        let codeUser: string | null = null;
+
+        if (dto.role === "AGENT_ENROLEUR") {
+            codeUser = this.generateCodes();
+        }
 
         const user = await this.prisma.user.create({
             data: {
@@ -100,6 +109,7 @@ export class AuthService {
                 phoneNumber: dto.phoneNumber,
                 password: hashed,
                 passwordGenerate: passwordGenerat,
+                codeGenerate: codeUser,
                 role: dto.role,
                 status: UserStatus.ACTIVE,
                 typeCompte: dto.typeCompte,
@@ -129,7 +139,7 @@ export class AuthService {
     }
 
 
-        private async uploadAndSaveSingleFile(enrollementId: string, fileBuffer: Buffer | string, fileType: string, folder: string,): Promise<void> {
+    private async uploadAndSaveSingleFile(enrollementId: string, fileBuffer: Buffer | string, fileType: string, folder: string,): Promise<void> {
         // Chercher fichier existant et supprimer
         const existingFile = await this.prisma.fileManager.findFirst({
             where: { targetId: enrollementId, fileType },
@@ -213,7 +223,7 @@ export class AuthService {
         // Transforme le fileUrl relatif en URL publique
         const imageUrl = file ? getPublicFileUrl(file.fileUrl) : null;
 
-        const payload = { sub: user.id, role: user.role, status: user.status, name: user.name, imageUrl, wallet: wallet.balance, compte: wallet.accountNumber };
+        const payload = { sub: user.id, role: user.role, status: user.status, name: user.name, imageUrl, wallet: wallet.balance, compte: wallet.accountNumber, typeCompte: user.typeCompte };
         const access = this.jwtService.sign(payload, { expiresIn: '15m' });
         const refresh = this.jwtService.sign(payload, { expiresIn: '7d' });
 
@@ -226,6 +236,7 @@ export class AuthService {
                 name: user.name,
                 role: user.role,
                 status: user.status,
+                typeCompte: user.typeCompte,
                 imageUrl
             },
         });
@@ -265,6 +276,7 @@ export class AuthService {
             imageUrl,
             wallet: wallet?.balance ?? 0,
             compte: wallet?.accountNumber ?? null,
+            typeCompte: user.typeCompte
         };
 
         const access = this.jwtService.sign(payload, { expiresIn: '15m' });
@@ -279,6 +291,7 @@ export class AuthService {
                 name: user.name,
                 role: user.role,
                 status: user.status,
+                typeCompte: user.typeCompte,
                 imageUrl,
             },
         });
@@ -925,9 +938,7 @@ export class AuthService {
 
         // findwallet
         const wallet = await this.prisma.wallet.findUnique({ where: { userId: user.id } });
-        // const imageUrl = file?.fileUrl || null;
         const imageUrl = file ? getPublicFileUrl(file.fileUrl) : null;
-
         return new BaseResponse(200, 'Connexion réussie par code', {
             access_token,
             refresh_token,
@@ -936,6 +947,8 @@ export class AuthService {
                 name: user.name,
                 code: user.codeGenerate,
                 role: user.role,
+                status: user.status,
+                typeCompte: user.typeCompte,
                 imageUrl: imageUrl,
                 wallet: wallet.balance,
 
@@ -976,6 +989,8 @@ export class AuthService {
                 name: user.name,
                 phoneNumber: user.phoneNumber,
                 role: user.role,
+                status: user.status,
+                typeCompte: user.typeCompte,
                 imageUrl: imageUrl,
                 wallet: wallet.balance,
             },
@@ -1040,54 +1055,54 @@ export class AuthService {
 
 
     /** Récupère tous les utilisateurs avec le rôle AGENT_ENROLEUR */
-async getAgentsEnroleurs(): Promise<BaseResponse<any[]>> {
-    try {
-        const users = await this.prisma.user.findMany({
-            where: { role: 'AGENT_ENROLEUR' },
-            include: {
-                wallet: true,
-            },
-        });
+    async getAgentsEnroleurs(): Promise<BaseResponse<any[]>> {
+        try {
+            const users = await this.prisma.user.findMany({
+                where: { role: 'AGENT_ENROLEUR' },
+                include: {
+                    wallet: true,
+                },
+            });
 
-        const data = users.map(user => ({
-            id: user.id,
-            name: user.name,
-            email: user.email,
-            phoneNumber: user.phoneNumber,
-            status: user.status,
-            wallet: user.wallet ? { balance: user.wallet.balance, accountNumber: user.wallet.accountNumber } : null,
-        }));
+            const data = users.map(user => ({
+                id: user.id,
+                name: user.name,
+                email: user.email,
+                phoneNumber: user.phoneNumber,
+                status: user.status,
+                wallet: user.wallet ? { balance: user.wallet.balance, accountNumber: user.wallet.accountNumber } : null,
+            }));
 
-        return new BaseResponse(200, 'Liste des agents enroleurs', data);
-    } catch (error) {
-        throw new InternalServerErrorException(error.message);
+            return new BaseResponse(200, 'Liste des agents enroleurs', data);
+        } catch (error) {
+            throw new InternalServerErrorException(error.message);
+        }
     }
-}
 
-/** Récupère tous les utilisateurs avec le rôle AGENT_CONTROLE */
-async getAgentsControle(): Promise<BaseResponse<any[]>> {
-    try {
-        const users = await this.prisma.user.findMany({
-            where: { role: 'AGENT_CONTROLE' },
-            include: {
-                wallet: true
-            },
-        });
+    /** Récupère tous les utilisateurs avec le rôle AGENT_CONTROLE */
+    async getAgentsControle(): Promise<BaseResponse<any[]>> {
+        try {
+            const users = await this.prisma.user.findMany({
+                where: { role: 'AGENT_CONTROLE' },
+                include: {
+                    wallet: true
+                },
+            });
 
-        const data = users.map(user => ({
-            id: user.id,
-            name: user.name,
-            email: user.email,
-            phoneNumber: user.phoneNumber,
-            status: user.status,
-            wallet: user.wallet ? { balance: user.wallet.balance, accountNumber: user.wallet.accountNumber } : null,
-        }));
+            const data = users.map(user => ({
+                id: user.id,
+                name: user.name,
+                email: user.email,
+                phoneNumber: user.phoneNumber,
+                status: user.status,
+                wallet: user.wallet ? { balance: user.wallet.balance, accountNumber: user.wallet.accountNumber } : null,
+            }));
 
-        return new BaseResponse(200, 'Liste des agents contrôle', data);
-    } catch (error) {
-        throw new InternalServerErrorException(error.message);
+            return new BaseResponse(200, 'Liste des agents contrôle', data);
+        } catch (error) {
+            throw new InternalServerErrorException(error.message);
+        }
     }
-}
 
 
 }
