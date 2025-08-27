@@ -305,57 +305,117 @@ model Product {
 }
 
 model Enrollements {
-  id                          String           @id @default(uuid())
-  code                        String           @unique
-  TypeCompte                  TypeCompte
-  agent_id                    String
-  agent_enroleur              User?             @relation("AgentEnroleur", fields: [agent_id], references: [id], onDelete: Cascade)
-  agent_superviseur_id        String?
-  agent_superviseur           User ?            @relation("AgentSuperviseur", fields: [agent_superviseur_id], references: [id])
-  user_control_id             String?
-  user_control                User?            @relation("UserControl", fields: [user_control_id], references: [id])
-  confirm_validation_control  Boolean?
-  numero_lot                  String?
-  validation_control          Boolean?
-  date_validation_control     DateTime?
+  id                             String           @id @default(uuid())
+  code                           String           @unique
+  TypeCompte                     TypeCompte
+  agent_id                       String
+  agent_enroleur                 User?            @relation("AgentEnroleur", fields: [agent_id], references: [id], onDelete: Cascade)
+  agent_superviseur_id           String?
+  agent_superviseur              User?            @relation("AgentSuperviseur", fields: [agent_superviseur_id], references: [id])
+  user_control_id                String?
+  user_control                   User?            @relation("UserControl", fields: [user_control_id], references: [id])
+
+  confirm_validation_control     Boolean?         @default(false)
+  numero_lot                     String?
+  validation_control             Boolean?         @default(false)
+  date_validation_control        DateTime?
   date_confirm_validation_control DateTime?
-  commentaire_controle        String? // Champ pour les motifs de rejet saisis par le contrôleur
-  is_deleted                  Boolean          @default(false)
-  is_select_lot               String? // id de l'agent qui traite
-  status_dossier              StatusDossier?
-  time_enrolment              Int?
-  start_date                  DateTime?
-  end_date                    DateTime?
-  nom                         String
-  prenom                      String
-  datedenaissance             DateTime
-  lieudenaissance             String
-  sexe                        String
-  site                        String?
-  nationalit                  String?
-  situationmatrimoniale       String
-  niveaudinstruction          NiveauInstruction
-  numroprincipal              String?  @unique
-  languelocaleparle           String
-  autreslanguelocaleparle     String?
-  decoupageId                 String
-  decoupage                   Decoupage        @relation("DecoupageEnrollements", fields: [decoupageId], references: [id], onDelete: Cascade)
-  campementquartier           String?
-  coordonneesgeo              String?
-  activitprincipaleId         String?
-  activitprincipale           Activite?        @relation("ActivitePrincipale", fields: [activitprincipaleId], references: [id])
-  spculationprincipaleId      String?
-  spculationprincipale        Speculation?     @relation("SpeculationPrincipale", fields: [spculationprincipaleId], references: [id])
+  commentaire_controle           String? // Champ pour les motifs de rejet saisis par le contrôleur
+
+  is_deleted                     Boolean           @default(false)
+  is_select_lot                  String? // id de l'agent qui traite
+  status_dossier                 StatusDossier?
+  time_enrolment                 Int?
+  start_date                     DateTime?
+  end_date                       DateTime?
+  nom                            String
+  prenom                         String
+  datedenaissance                DateTime
+  lieudenaissance                String
+  sexe                           String
+  site                           String?
+  nationalit                     String?
+  situationmatrimoniale          String
+  niveaudinstruction             NiveauInstruction
+  numroprincipal                 String?  @unique
+  languelocaleparle              String
+  autreslanguelocaleparle        String?
+
+  decoupageId                    String
+  decoupage                      Decoupage        @relation("DecoupageEnrollements", fields: [decoupageId], references: [id], onDelete: Cascade)
+
+  campementquartier              String?
+  coordonneesgeo                 String?
+  activitprincipaleId            String?
+  activitprincipale              Activite?        @relation("ActivitePrincipale", fields: [activitprincipaleId], references: [id])
+  spculationprincipaleId         String?
+  spculationprincipale           Speculation?     @relation("SpeculationPrincipale", fields: [spculationprincipaleId], references: [id])
+
   superficiedevotreparcellecultu Float?
-  indiquezlasuperficieenha    Float?
-  quantitproduction           Float?
-  prcisezlenombre             Int?
-  moyendestockage             String?
-  autresActivites                AutreActivite[]     @relation("EnrollementActivites")
-  autresSpeculations             AutreSpeculation[]  @relation("EnrollementSpeculations")
-  createdAt         DateTime          @default(now())
-  updatedAt         DateTime          @updatedAt
+  indiquezlasuperficieenha       Float?
+  quantitproduction              Float?
+  prcisezlenombre                Int?
+  moyendestockage                String?
+
+  autresActivites                AutreActivite[]      @relation("EnrollementActivites")
+  autresSpeculations             AutreSpeculation[]   @relation("EnrollementSpeculations")
+
+  createdAt                      DateTime           @default(now())
+  updatedAt                      DateTime           @updatedAt
 }
+
+// model Enrollements {
+//   id                          String           @id @default(uuid())
+//   code                        String           @unique
+//   TypeCompte                  TypeCompte
+//   agent_id                    String
+//   agent_enroleur              User?             @relation("AgentEnroleur", fields: [agent_id], references: [id], onDelete: Cascade)
+//   agent_superviseur_id        String?
+//   agent_superviseur           User ?            @relation("AgentSuperviseur", fields: [agent_superviseur_id], references: [id])
+//   user_control_id             String?
+//   user_control                User?            @relation("UserControl", fields: [user_control_id], references: [id])
+//   confirm_validation_control  Boolean?
+//   numero_lot                  String?
+//   validation_control          Boolean?
+//   date_validation_control     DateTime?
+//   date_confirm_validation_control DateTime?
+//   commentaire_controle        String? // Champ pour les motifs de rejet saisis par le contrôleur
+//   is_deleted                  Boolean          @default(false)
+//   is_select_lot               String? // id de l'agent qui traite
+//   status_dossier              StatusDossier?
+//   time_enrolment              Int?
+//   start_date                  DateTime?
+//   end_date                    DateTime?
+//   nom                         String
+//   prenom                      String
+//   datedenaissance             DateTime
+//   lieudenaissance             String
+//   sexe                        String
+//   site                        String?
+//   nationalit                  String?
+//   situationmatrimoniale       String
+//   niveaudinstruction          NiveauInstruction
+//   numroprincipal              String?  @unique
+//   languelocaleparle           String
+//   autreslanguelocaleparle     String?
+//   decoupageId                 String
+//   decoupage                   Decoupage        @relation("DecoupageEnrollements", fields: [decoupageId], references: [id], onDelete: Cascade)
+//   campementquartier           String?
+//   coordonneesgeo              String?
+//   activitprincipaleId         String?
+//   activitprincipale           Activite?        @relation("ActivitePrincipale", fields: [activitprincipaleId], references: [id])
+//   spculationprincipaleId      String?
+//   spculationprincipale        Speculation?     @relation("SpeculationPrincipale", fields: [spculationprincipaleId], references: [id])
+//   superficiedevotreparcellecultu Float?
+//   indiquezlasuperficieenha    Float?
+//   quantitproduction           Float?
+//   prcisezlenombre             Int?
+//   moyendestockage             String?
+//   autresActivites                AutreActivite[]     @relation("EnrollementActivites")
+//   autresSpeculations             AutreSpeculation[]  @relation("EnrollementSpeculations")
+//   createdAt         DateTime          @default(now())
+//   updatedAt         DateTime          @updatedAt
+// }
 
 model AutreActivite {
   id            String      @id @default(uuid())

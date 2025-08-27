@@ -31,7 +31,7 @@ export class MessageController {
         // dto.file = file ?? null;
         dto.file = files.file?.[0] ?? null;
         // userId depuis le token JWT
-        const userId = (req.user as any).userId || (req.user as any).sub;
+        const userId = (req.user as any).id|| (req.user as any).sub;
         // console.log(dto);
         return this.messageService.createMessage(userId, dto);
     }
@@ -49,7 +49,7 @@ export class MessageController {
         @Req() req: Request,
     ) {
         dto.file = files.file?.[0] ?? null;
-        const userId = (req.user as any).userId || (req.user as any).sub;
+        const userId = (req.user as any).id|| (req.user as any).sub;
         return this.messageService.updateMessage(userId, id, dto);
     }
 
@@ -58,7 +58,7 @@ export class MessageController {
     @ApiOperation({ summary: 'Supprimer un message' })
     @ApiResponse({ status: 200, description: 'Message supprimé avec succès.' })
     async delete(@Param('id') id: string, @Req() req: Request) {
-        const userId = (req.user as any).userId || (req.user as any).sub;
+        const userId = (req.user as any).id|| (req.user as any).sub;
         return this.messageService.deleteMessage(userId, id);
     }
 
@@ -72,7 +72,7 @@ export class MessageController {
         @Param('lastOrderId') lastOrderId: string,
         @Query() pagination: PaginationParamsDto,
         @Req() req: Request,) {
-        const userId = (req.user as any).userId || (req.user as any).sub;
+        const userId = (req.user as any).id|| (req.user as any).sub;
         return this.messageService.getMessagesByOrderIdPaginater(userId, lastOrderId, pagination);
     }
 
@@ -88,7 +88,7 @@ export class MessageController {
         @Req() req: Request,
         @Query() pagination: PaginationParamsDto
     ) {
-        const userId2 = (req.user as any).userId || (req.user as any).sub;
+        const userId2 = (req.user as any).id|| (req.user as any).sub;
         return this.messageService.getMessagesByUserIdPaginated(userId2, pagination);
     }
 

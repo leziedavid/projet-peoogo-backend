@@ -24,7 +24,7 @@ export class WalletController {
     async rechargeWallet(@Req() req: Request,@Body() dto: WalletRechargeDto,): Promise<BaseResponse<null>> {
         const user = req.user as any; // Adapté selon ton AuthGuard
         return this.walletService.rechargeWallet(
-            user.userId,
+            user.id,
             dto.amount,
             dto.paymentMethod,
             dto.rechargeType,

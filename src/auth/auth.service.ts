@@ -23,6 +23,7 @@ import { LoginByPhoneCode } from 'src/dto/request/loginByPhoneCode.dto';
 import { LocalStorageService } from 'src/utils/LocalStorageService';
 import * as path from 'path';
 import { getPublicFileUrl } from 'src/utils/helper';
+import { ConfigService } from '@nestjs/config';
 
 @Injectable()
 export class AuthService {
@@ -32,6 +33,7 @@ export class AuthService {
         private readonly cloudinary: CloudinaryService,
         private readonly functionService: FunctionService,
         private readonly localStorage: LocalStorageService, // injecter ton service
+        private readonly configService: ConfigService,  // <-- Injection ici
 
     ) { }
 
@@ -242,30 +244,38 @@ export class AuthService {
         });
     }
 
-    async loginByPhoneCode(dto: LoginByPhoneCode): Promise<BaseResponse<{ access_token: string; refresh_token: string; user: any }>> {
-        const isCode = /[a-zA-Z#]/.test(dto.login); // S'il y a des lettres ou '#' dans login, on considère que c'est un code
+    async loginByPhoneCode(
+        dto: LoginByPhoneCode
+    ): Promise<BaseResponse<{ access_token: string; refresh_token: string; user: any }>> {
+        const isCode = /[a-zA-Z#]/.test(dto.login);
 
-        // Recherche utilisateur selon type de login
         const user = isCode
             ? await this.prisma.user.findFirst({ where: { codeGenerate: dto.login } })
             : await this.prisma.user.findUnique({ where: { phoneNumber: dto.login } });
 
-        if (!user) throw new UnauthorizedException('Utilisateur non trouvé');
+        if (!user) {
+            return new BaseResponse(401, 'Utilisateur non trouvé');
+        }
 
         const ok = await bcrypt.compare(dto.password, user.password);
-        if (!ok) throw new UnauthorizedException('Mot de passe incorrect');
-        if (user.status === UserStatus.INACTIVE) throw new UnauthorizedException('Compte inactif');
-        if (user.status === UserStatus.BLOCKED) throw new UnauthorizedException('Compte bloqué');
+        if (!ok) {
+            return new BaseResponse(401, 'Mot de passe incorrect');
+        }
 
-        // Récupération image utilisateur
+        if (user.status === UserStatus.INACTIVE) {
+            return new BaseResponse(401, 'Compte inactif');
+        }
+
+        if (user.status === UserStatus.BLOCKED) {
+            return new BaseResponse(401, 'Compte bloqué');
+        }
+
         const file = await this.prisma.fileManager.findFirst({
             where: { targetId: user.id, fileType: 'userFiles' },
             orderBy: { createdAt: 'desc' },
         });
 
-        // Récupération wallet
         const wallet = await this.prisma.wallet.findUnique({ where: { userId: user.id } });
-        // const imageUrl = file?.fileUrl || null;
         const imageUrl = file ? getPublicFileUrl(file.fileUrl) : null;
 
         const payload = {
@@ -276,11 +286,20 @@ export class AuthService {
             imageUrl,
             wallet: wallet?.balance ?? 0,
             compte: wallet?.accountNumber ?? null,
-            typeCompte: user.typeCompte
+            typeCompte: user.typeCompte,
         };
 
-        const access = this.jwtService.sign(payload, { expiresIn: '15m' });
-        const refresh = this.jwtService.sign(payload, { expiresIn: '7d' });
+
+        const access = this.jwtService.sign(payload, {
+            expiresIn: this.configService.get('JWT_ACCESS_EXPIRE') || '15m',
+        });
+
+        const refresh = this.jwtService.sign(payload, {
+            expiresIn: this.configService.get('JWT_REFRESH_EXPIRE') || '7d',
+        });
+
+        // const access = this.jwtService.sign(payload, { expiresIn: '15m' });
+        // const refresh = this.jwtService.sign(payload, { expiresIn: '7d' });
 
         return new BaseResponse(200, 'Connexion réussie', {
             access_token: access,
@@ -300,74 +319,30 @@ export class AuthService {
     /** Rafraîchir access token */
     async refreshToken(token: string): Promise<BaseResponse<{ access_token: string }>> {
         try {
-            const payload = this.jwtService.verify(token);
-            const access = this.jwtService.sign(
-                { sub: payload.sub, role: payload.role, status: payload.status, name: payload.name, imageUrl: payload.imageUrl, partnerId: payload.partnerId, wallet: payload.balance, compte: payload.accountNumber },
-                { expiresIn: '15m' },
+            // Vérifie le refresh token (avec la clé et options par défaut)
+            const payload = this.jwtService.verify(token, {
+                secret: this.configService.get<string>('JWT_SECRET'),
+            });
+            // Génère un nouveau access token avec la durée JWT_ACCESS_EXPIRE
+            const newAccessToken = this.jwtService.sign(
+                {
+                    sub: payload.sub,
+                    role: payload.role,
+                    status: payload.status,
+                    name: payload.name,
+                    imageUrl: payload.imageUrl,
+                    wallet: payload.wallet,
+                    compte: payload.compte,
+                    typeCompte: payload.typeCompte,
+                },
+                {
+                    expiresIn: this.configService.get<string>('JWT_REFRESH_EXPIRE') || '1d',
+                },
             );
-            return new BaseResponse(200, 'Token rafraîchi', { access_token: access });
-        } catch {
+            return new BaseResponse(200, 'Token rafraîchi', { access_token: newAccessToken });
+        } catch (err) {
             throw new UnauthorizedException('Refresh token invalide ou expiré');
         }
-    }
-
-    /** Mise à jour du profil utilisateur */
-    async updateUser2(id: string, dto: UpdateUserDto): Promise<BaseResponse<{ user: any }>> {
-        const user = await this.prisma.user.findUnique({ where: { id } });
-        if (!user) throw new NotFoundException('Utilisateur introuvable');
-
-        const data: any = {};
-        if (dto.name) data.name = dto.name;
-        if (dto.password) data.password = await bcrypt.hash(dto.password, 10);
-        if (dto.role) data.role = dto.role;
-        if (dto.status) data.status = dto.status;
-        if (dto.typeCompte) data.typeCompte = dto.typeCompte;
-        if (dto.phoneCountryCode) data.phoneCountryCode = dto.phoneCountryCode;
-        if (dto.phoneNumber) data.phoneNumber = dto.phoneNumber;
-        if (dto.email) data.email = dto.email;
-
-
-        const updated = await this.prisma.user.update({ where: { id }, data });
-
-        // 🔁 Fonction réutilisable pour chaque type de fichier
-        const handleFileUpdate = async (buffer: Buffer, fileType: string) => {
-            const existingFile = await this.prisma.fileManager.findFirst({
-                where: { targetId: id, fileType },
-                orderBy: { createdAt: 'desc' },
-            });
-
-            if (existingFile?.fileCode) {
-                await this.cloudinary.deleteFileByPublicId(existingFile.fileCode);
-            }
-
-            if (existingFile) {
-                await this.prisma.fileManager.deleteMany({
-                    where: { fileType, targetId: id },
-                });
-            }
-
-            const upload = await this.cloudinary.uploadFile(buffer, 'users');
-
-            await this.prisma.fileManager.create({
-                data: {
-                    ...upload,
-                    fileType,
-                    targetId: id,
-                },
-            });
-        };
-
-        // 📎 Mise à jour des fichiers
-        try {
-            if (dto.file) {
-                await handleFileUpdate(dto.file.buffer, 'userFiles');
-            }
-
-        } catch (err) {
-            throw new InternalServerErrorException("Erreur lors de la mise à jour d’un fichier utilisateur");
-        }
-
-        return new BaseResponse(200, 'Profil mis à jour', { user: updated });
     }
 
     /**
@@ -1052,7 +1027,6 @@ export class AuthService {
             enrollement,
         });
     }
-
 
     /** Récupère tous les utilisateurs avec le rôle AGENT_ENROLEUR */
     async getAgentsEnroleurs(): Promise<BaseResponse<any[]>> {

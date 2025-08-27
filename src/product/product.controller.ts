@@ -30,7 +30,7 @@ export class ProductController {
             dto.image = files.image?.[0] ?? null;
             dto.autreImage = files.autreImage ?? null;
             const user = req.user as any;
-            return this.productService.createProduct(dto, user.userId);
+            return this.productService.createProduct(dto, user.id);
     }
 
     @UseGuards(JwtAuthGuard)
@@ -74,7 +74,7 @@ export class ProductController {
         dto.image = files.image?.[0] ?? null;
         dto.autreImage = files.autreImage ?? null;
         const user = req.user as any;
-        return this.productService.updateProduct(id, dto,  user.userId);
+        return this.productService.updateProduct(id, dto,  user.id);
     }
     
 
@@ -84,7 +84,7 @@ export class ProductController {
     @ApiResponse({ status: 200, description: 'Produit supprimé (logique).' })
     async delete(@Param('id') id: string,@Req() req: Request,) {
         const user = req.user as any;
-        return this.productService.deleteProduct(id, user.userId);
+        return this.productService.deleteProduct(id, user.id);
     }
 
     

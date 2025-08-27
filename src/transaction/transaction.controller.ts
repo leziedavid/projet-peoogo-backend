@@ -40,7 +40,7 @@ export class TransactionController {
     @ApiQuery({ name: 'limit', required: false, type: Number })
     async getMyTransactions(@Req() req: Request, @Query() pagination: PaginationParamsDto) {
         const user = req.user as any;
-        return this.transactionService.getTransactionsByUser( user.userId, pagination);
+        return this.transactionService.getTransactionsByUser( user.id, pagination);
     }
 
     @UseGuards(JwtAuthGuard)
@@ -92,7 +92,7 @@ export class TransactionController {
     @ApiResponse({ status: 200, description: 'Statistiques utilisateur retournées.' })
     async getUserTransactionStats(@Req() req: Request,) {
         const user = req.user as any;
-        return this.transactionService.getUserTransactionStats(user.userId, );
+        return this.transactionService.getUserTransactionStats(user.id, );
     }
 
     @UseGuards(JwtAuthGuard)
@@ -122,7 +122,7 @@ export class TransactionController {
     async getMonthlyTransactionStatsByUser(@Req() req: Request, @Query('startDate') startDate?: string, @Query('endDate') endDate?: string,) {
         const user = req.user as any;
         return this.transactionService.getMonthlyTransactionStatsByUser(
-            user.userId,
+            user.id,
             startDate ? new Date(startDate) : undefined,
             endDate ? new Date(endDate) : undefined,
         );

@@ -178,7 +178,7 @@ export class AuthController {
     @ApiResponse({ status: 401, description: 'Token ou userId manquant/invalide.' })
     async ParametresuserData(@Req() req: any) {
         // console.log("🚀 ParametresuserData",req.user);
-        return this.authService.ParametresuserData(req.user.userId);
+        return this.authService.ParametresuserData(req.user.id);
     }
 
     // updateFiles
@@ -194,7 +194,7 @@ export class AuthController {
         @UploadedFiles() files: { file?: Express.Multer.File[] },
         @Body() dto: FilesUpdateDto) {
         dto.file = files.file?.[0] ?? null;
-        return this.authService.updateFiles(req.user.userId, dto);
+        return this.authService.updateFiles(req.user.id, dto);
     }
 
     // updateProfile
@@ -204,7 +204,7 @@ export class AuthController {
     @ApiResponse({ status: 200, description: 'Profil mis à jour avec succès.' })
     @ApiResponse({ status: 401, description: 'Token ou userId manquant/invalide.' })
     async updateProfile(@Req() req: any, @Body() dto: UpdateProfileDto) {
-        return this.authService.updateProfile(req.user.userId, dto);
+        return this.authService.updateProfile(req.user.id, dto);
     }
 
     @Get('profile')

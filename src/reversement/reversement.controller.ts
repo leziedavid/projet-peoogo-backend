@@ -19,7 +19,7 @@ export class ReversementController {
     @ApiResponse({ status: 400, description: 'Données invalides.' })
     async create(@Body() dto: ReversementDto, @Req() req: Request) {
         const user = req.user as any;
-        if (!user.userId) throw new NotFoundException('Utilisateur non authentifié');
+        if (!user.id) throw new NotFoundException('Utilisateur non authentifié');
         return this.reversementService.createReversement(dto);
     }
 

@@ -24,15 +24,18 @@ export class EnrollementsController {
     @ApiConsumes('multipart/form-data')
     @UseInterceptors(FileFieldsInterceptor([{ name: 'photo', maxCount: 1 }, { name: 'photo_document_1', maxCount: 1 }, { name: 'photo_document_2', maxCount: 1 },]),)
     @ApiResponse({ status: 201, description: 'Enrollement créé avec succès.' })
-    async create(
-        @UploadedFiles() files: { photo?: Express.Multer.File[]; photo_document_1?: Express.Multer.File[]; photo_document_2?: Express.Multer.File[] },
-        @Body() dto: CreateEnrollementsDto, @Req() req: Request) {
+    async create( @UploadedFiles() files: { photo?: Express.Multer.File[]; photo_document_1?: Express.Multer.File[]; photo_document_2?: Express.Multer.File[] },
+        
+    @Body() dto: CreateEnrollementsDto,
+        @Req() req: Request) {
+
+        const user = req.user as any; // typage personnalisé si disponible
+        console.log('Received user:', user.id);
         // Injecter les fichiers dans le dto en adaptant au buffer attendu
         dto.photo = files.photo?.[0] ?? null;
         dto.photo_document_1 = files.photo_document_1?.[0] ?? null;
         dto.photo_document_2 = files.photo_document_2?.[0] ?? null;
-        const user = req.user as any; // typage personnalisé si disponible
-        return this.enrollementsService.create(user?.userId, dto);
+        return this.enrollementsService.create(user?.id, dto);
     }
 
 
@@ -96,7 +99,7 @@ export class EnrollementsController {
     @ApiQuery({ name: 'limit', required: false, type: Number, example: 10 })
     async getAllPaginate(@Req() req: Request, @Query() pagination: PaginationParamsDto) {
         const user = req.user as any;
-        return this.enrollementsService.assignLotIfNeeded(user.userId,pagination);
+        return this.enrollementsService.assignLotIfNeeded(user.id,pagination);
     }
 
     @UseGuards(JwtAuthGuard)
@@ -107,7 +110,7 @@ export class EnrollementsController {
     @ApiQuery({ name: 'limit', required: false, type: Number, example: 10 })
     async getByAgent(@Req() req: Request, @Query() pagination: PaginationParamsDto) {
         const user = req.user as any;
-        return this.enrollementsService.getPaginatedByAgent(user.userId,pagination);
+        return this.enrollementsService.getPaginatedByAgent(user.id,pagination);
     }
 
     @UseGuards(JwtAuthGuard)
@@ -118,7 +121,7 @@ export class EnrollementsController {
     @ApiQuery({ name: 'limit', required: false, type: Number, example: 10 })
     async getAllPaginateOne(@Req() req: Request, @Query() pagination: PaginationParamsDto) {
         const user = req.user as any;
-        return this.enrollementsService.getAllPaginateOne(user.userId,pagination);
+        return this.enrollementsService.getAllPaginateOne(user.id,pagination);
     }
 
     // getStatistiquesControle
@@ -132,7 +135,7 @@ export class EnrollementsController {
         @Query('numero_lot') numero_lot?: string,
     ) {
         const user = req.user as any; // typage personnalisé si disponible
-        return this.enrollementsService.getStatistiquesControle(user?.userId,numero_lot);
+        return this.enrollementsService.getStatistiquesControle(user?.id,numero_lot);
     }
 
     // getStatsAdmin
@@ -150,7 +153,7 @@ export class EnrollementsController {
     @ApiResponse({ status: 200, description: 'Dossier contrôlé avec succès.' })
     async controlDossier( @Param('id') id: string, @Body() body: ControlEnrollementDto, @Req() req: Request ) {
         const user = req.user as any;
-        return this.enrollementsService.controlEnrollement(id, user?.userId, body);
+        return this.enrollementsService.controlEnrollement(id, user?.id, body);
     }
 
     // @UseGuards(JwtAuthGuard)

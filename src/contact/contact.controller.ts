@@ -30,7 +30,7 @@ export class ContactController {
     @ApiOperation({ summary: 'Mettre à jour un contact' })
     @ApiResponse({ status: 200, description: 'Contact mis à jour avec succès.' })
     async update(  @Param('id') id: string, @Body() dto: UpdateContactDto, @Req() req: Request,) {
-        const userId = (req.user as any).userId || (req.user as any).sub;
+        const userId = (req.user as any).id || (req.user as any).sub;
         return this.contactService.update(id, dto);
     }
 
@@ -39,7 +39,7 @@ export class ContactController {
     @ApiOperation({ summary: 'Supprimer un contact' })
     @ApiResponse({ status: 200, description: 'Contact supprimé avec succès.' })
     async delete(@Param('id') id: string, @Req() req: Request) {
-        const userId = (req.user as any).userId || (req.user as any).sub;
+        const userId = (req.user as any).id || (req.user as any).sub;
         return this.contactService.remove(id);
     }
 

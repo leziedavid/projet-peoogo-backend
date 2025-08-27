@@ -23,10 +23,10 @@ export class EcommerceOrderController {
     @ApiResponse({ status: 400, description: 'Données invalides.' })
     async createOrder(@Body() dto: CreateEcommerceOrderDto,@Req() req: Request,) {
         const user = req.user as any;
-        if (!user.userId) {
+        if (!user.id) {
             throw new UnauthorizedException('Utilisateur non authentifié');
         }
-        return this.ecommerceOrderService.createOrder(dto, user.userId);
+        return this.ecommerceOrderService.createOrder(dto, user.id);
     }
 
 
@@ -61,7 +61,7 @@ export class EcommerceOrderController {
     @ApiQuery({ name: 'limit', required: false, type: Number })
     async getByUser(@Req() req: Request, @Query() pagination: PaginationParamsDto) {
         const user = req.user as any;
-        return this.ecommerceOrderService.getOrdersByUserId(user.userId, pagination);
+        return this.ecommerceOrderService.getOrdersByUserId(user.id, pagination);
     }
 
     @UseGuards(JwtAuthGuard)
@@ -73,7 +73,7 @@ export class EcommerceOrderController {
     @ApiQuery({ name: 'limit', required: false, type: Number })
     async getOrdersHistoryByUserId(@Req() req: Request, @Query() pagination: PaginationParamsDto) {
         const user = req.user as any;
-        return this.ecommerceOrderService.getOrdersHistoryByUserId(user.userId, pagination);
+        return this.ecommerceOrderService.getOrdersHistoryByUserId(user.id, pagination);
     }
 
     @UseGuards(JwtAuthGuard)
@@ -85,7 +85,7 @@ export class EcommerceOrderController {
     @ApiQuery({ name: 'limit', required: false, type: Number })
     async getOrdersByCreator(@Req() req: Request, @Query() pagination: PaginationParamsDto) {
         const user = req.user as any;
-        return this.ecommerceOrderService.getOrdersByProductCreator(user.userId, pagination);
+        return this.ecommerceOrderService.getOrdersByProductCreator(user.id, pagination);
     }
 
 
@@ -96,7 +96,7 @@ export class EcommerceOrderController {
     @ApiResponse({ status: 404, description: 'Commande introuvable.' })
     async delete(@Param('id') id: string,  @Req() req: Request,) {
         const user = req.user as any;
-        return this.ecommerceOrderService.deleteOrder(id, user.userId);
+        return this.ecommerceOrderService.deleteOrder(id, user.id);
     }
 
 
@@ -107,7 +107,7 @@ export class EcommerceOrderController {
     @ApiResponse({ status: 404, description: 'Commande introuvable.' })
     async cancelOrder(@Param('id') id: string,  @Req() req: Request,) {
         const user = req.user as any;
-        return this.ecommerceOrderService.cancelOrder(id, user.userId);
+        return this.ecommerceOrderService.cancelOrder(id, user.id);
     }
 
     // @Patch(':id/status/:status')
@@ -116,7 +116,7 @@ export class EcommerceOrderController {
     // @ApiResponse({ status: 404, description: 'Commande introuvable.' })
     // async updateStatus(@Param('id') id: string, @Body() dto: UpdateOrderStatusDto,@Req() req: Request,) {
     //     const user = req.user as any;
-    //     return this.ecommerceOrderService.updateOrderStatus(id, dto.status,user.userId);
+    //     return this.ecommerceOrderService.updateOrderStatus(id, dto.status,user.id);
     // }
 
 
@@ -131,7 +131,7 @@ export class EcommerceOrderController {
         @Req() req: Request,) {
         const user = req.user as any;
         console.log('USER:', user);
-        return this.ecommerceOrderService.updateOrderStatus(id, status, user.userId);
+        return this.ecommerceOrderService.updateOrderStatus(id, status, user.id);
     }
 
     @UseGuards(JwtAuthGuard)

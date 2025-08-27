@@ -237,7 +237,7 @@ export class EnrollementsService {
 
             // Extraire decoupage du dto
             const { typeCompte, decoupage, photo, photo_document_1, photo_document_2, autresactivite, autresspeculation, ...dataWithoutFiles } = dto;
-            console.log('photo ok :', photo);
+            // console.log('photo ok :', photo);
 
             const autresactiviteParsed = this.parseStringOrArray<string>(autresactivite);
             const autresspeculationParsed = this.parseStringOrArray<string>(autresspeculation);
@@ -322,6 +322,7 @@ export class EnrollementsService {
         } catch (error) {
             throw new InternalServerErrorException(`Erreur création enrollement: ${error.message}`);
         }
+        
     }
 
     async update(id: string, dto: UpdateEnrollementsDto): Promise<BaseResponse<any>> {
@@ -488,7 +489,6 @@ export class EnrollementsService {
     async assignLotIfNeeded(userId: string, params: PaginationParamsDto): Promise<BaseResponse<any>> {
         
         const { page, limit } = params;
-
         // 🔍 Récupérer l'utilisateur
         const user = await this.prisma.user.findUnique({ where: { id: userId } });
         if (!user) {
@@ -512,6 +512,7 @@ export class EnrollementsService {
             },
         });
 
+
         // Étape 2 : Si aucun lot, attribuer un nouveau lot de 50 lignes
         if (!hasExistingLot) {
             const enrollementsToAssign = await this.prisma.enrollements.findMany({
@@ -530,6 +531,7 @@ export class EnrollementsService {
                 },
             });
 
+            console.log(enrollementsToAssign);
 
             if (enrollementsToAssign.length === 0) {
                 return new BaseResponse(200, 'Aucun enrôlement disponible pour attribution', this.emptyPaginateResult(page, limit),);

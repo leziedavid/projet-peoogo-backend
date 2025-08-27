@@ -3,18 +3,24 @@ import { AppModule } from './app.module';
 import { SwaggerModule, DocumentBuilder } from '@nestjs/swagger';
 import { join } from 'path';
 import { NestExpressApplication } from '@nestjs/platform-express';
+import { AllExceptionsFilter } from './utils/all-exceptions.filter';
+import { ConfigService } from '@nestjs/config';
 
 async function bootstrap() {
   // Création de l'application Express
   const app = await NestFactory.create<NestExpressApplication>(AppModule);
+
+  // Récupérer ConfigService via app.get()
+  const configService = app.get(ConfigService);
 
   // ----------------------------
   // Configuration globale
   // ----------------------------
   app.setGlobalPrefix('api/v1');
 
-  // Dossier statique pour les uploads
-  app.useStaticAssets(join(process.env.FILE_STORAGE_PATH || '/app/uploads'), {
+  // Dossier statique pour les uploads, via ConfigService
+  const fileStoragePath = configService.get<string>('FILE_STORAGE_PATH') || '/app/uploads';
+  app.useStaticAssets(join(fileStoragePath), {
     prefix: '/uploads/',
   });
 
@@ -55,7 +61,7 @@ async function bootstrap() {
       },
       'access-token',
     )
-    .addServer('http://109.199.107.23:4000','dev avec adress IP')
+    .addServer('http://109.199.107.23:4000', 'dev avec adress IP')
     .addServer('https://api.peoogo.com', 'Production')
     .addServer('https://backend.peoogo.com', 'Test backend')
     .addServer('https://dev.peoogo.com', 'Dev')
@@ -71,11 +77,15 @@ async function bootstrap() {
     },
   });
 
+  // Appliquer le filtre global
+  app.useGlobalFilters(new AllExceptionsFilter());
+
   // ----------------------------
   // Lancer le serveur
   // ----------------------------
-  const port = parseInt(process.env.PORT, 10) || 4000;
+  const port = configService.get<number>('PORT') || 4000;
   await app.listen(port);
+
   console.log(`🚀 API running on port ${port}`);
 }
 
