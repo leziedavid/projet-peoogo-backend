@@ -514,6 +514,7 @@ export class AuthService {
             orderBy: { createdAt: 'desc' },
         });
 
+        const imageUrl = profileImage ? getPublicFileUrl(profileImage.fileUrl) : null;
         // Étape 3 : Construction de la réponse simplifiée
         const simplifiedUserData = {
             id: user.id,
@@ -523,7 +524,7 @@ export class AuthService {
             phoneNumber: user.phoneNumber,
             role: user.role,
             status: user.status,
-            imageUrl: profileImage?.fileUrl || null,
+            imageUrl: imageUrl,
             wallet: user.wallet
                 ? {
                     id: user.wallet.id,

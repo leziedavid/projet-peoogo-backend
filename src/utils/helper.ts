@@ -12,8 +12,8 @@ export function getPublicFileUrl(filePath: string): string | null {
     if (!filePath) return null;
 
     // const baseUrl = process.env.SERVEUR_URL || 'http://localhost:4000';
-    const baseUrl = process.env.SERVEUR_URL || 'http://109.199.107.23:4000';
-    // const baseUrl = process.env.SERVEUR_URL || 'https://api.peoogo.com';
+    // const baseUrl = process.env.SERVEUR_URL || 'http://109.199.107.23:4000';
+    const baseUrl = process.env.SERVEUR_URL || 'https://api.peoogo.com';
 
     // Remplace les éventuels backslashes par des slashes
     const normalizedPath = filePath.replace(/\\/g, '/').replace(/\/+/g, '/');
