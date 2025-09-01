@@ -1,12 +1,9 @@
 import { Controller, Post, Get, Patch, Delete, Body, Param, UseInterceptors, UploadedFiles, UseGuards, Query, Req, } from '@nestjs/common';
 import { FileFieldsInterceptor } from '@nestjs/platform-express';
 import { ApiTags, ApiOperation, ApiResponse, ApiConsumes, ApiBearerAuth, ApiQuery, ApiBody, } from '@nestjs/swagger';
-import { CreateEnrollementsDto, UpdateEnrollementsDto, } from 'src/dto/request/enrollements.dto';
 import { JwtAuthGuard } from 'src/guards/jwt-auth.guard';
 import { Request } from 'express';
-import { EnrollementAdminFilterDto } from 'src/dto/request/enrollementAdminFilter.dto';
 import { PaginationParamsDto } from 'src/dto/request/pagination-params.dto';
-import { ControlEnrollementDto } from 'src/dto/request/control-enrollement.dto';
 import { CreateProductDto, UpdateProductDto } from 'src/dto/request/product.dto';
 import { ProductService } from './product.service';
 import { MarketProduitFilterDto } from 'src/dto/request/marketProduitFilter.dto';
@@ -118,7 +115,7 @@ export class ProductController {
     }
 
     // geProduitstById
-
+    
     @Get('get-produit/:id')
     @ApiOperation({ summary: 'Récupérer un produit par ID' })
     @ApiResponse({ status: 200, description: 'Produit trouvé.' })

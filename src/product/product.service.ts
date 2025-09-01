@@ -270,7 +270,6 @@ export class ProductService {
         const decoupages = await this.findDecoupageOrFail(dto.decoupage);
         const { image, autreImage, prixUnitaire, prixEnGros, quantite, decoupage, ...productData } = dto as any;
 
-        console.log('🚀 codeUsers:', autreImage);
         try {
             const code = await this.generateUniqueProductCode();
             const prixUnitaireNumber = parseFloat(prixUnitaire);
@@ -669,13 +668,12 @@ export class ProductService {
                 const images = await this.getProductImages(product.id);
                 const userInfo = await this.getUserByCodeGenerateOne(product.codeUsers);
                 const mainImageUrl = product.imageUrl ? getPublicFileUrl(product.imageUrl) : null;
-
                 return {
                     ...product,
                     statut: isDisponible ? 'disponible' : 'indisponible',
                     imageUrl: mainImageUrl, // image principale transformée
                     images,
-                    userInfo,
+                    userInfo: userInfo || null, // 👈 évite l'erreur si userInfo = null
                 };
             }),
         );

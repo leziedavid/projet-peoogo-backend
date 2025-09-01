@@ -34,6 +34,7 @@ async function bootstrap() {
     'https://backend.peoogo.com',
     'https://dev.peoogo.com',
     'http://localhost:3000', // ✅ ton front Next.js
+    'https://peoogo.com:3000', // ✅ ton front Next.js
     'http://109.199.107.23:3000', // ✅ ton front Next.js
     'http://109.199.107.23:4000', // ✅ ton backend
   ];

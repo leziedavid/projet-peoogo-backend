@@ -23,6 +23,7 @@ export class ReversementController {
         return this.reversementService.createReversement(dto);
     }
 
+    
     @UseGuards(JwtAuthGuard)
     @Get()
     @ApiOperation({ summary: 'Récupérer tous les reversements' })
