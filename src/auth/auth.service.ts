@@ -555,7 +555,8 @@ export class AuthService {
 
         // Étape 2 : Supprimer sur Cloudinary si l'image existe
         if (existingImage?.fileCode) {
-            await this.cloudinary.deleteFileByPublicId(existingImage.fileCode);
+            await this.localStorage.deleteFile(existingImage.fileCode);
+            // await this.cloudinary.deleteFileByPublicId(existingImage.fileCode);
         }
 
         // Étape 3 : Supprimer l’entrée en base (fileManager)
@@ -567,8 +568,7 @@ export class AuthService {
 
         // Étape 4 : Upload du nouveau fichier sur Cloudinary
         try {
-            const upload = await this.cloudinary.uploadFile(dto.file.buffer, 'users');
-
+            const upload = await this.localStorage.saveFile(dto.file.buffer, 'users');
             // Étape 5 : Création de la nouvelle entrée
             await this.prisma.fileManager.create({
                 data: {
