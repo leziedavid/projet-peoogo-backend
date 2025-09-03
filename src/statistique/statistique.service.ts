@@ -118,6 +118,7 @@ export class StatistiqueService {
             where.createdAt = {};
             if (filter.startDate) where.createdAt.gte = new Date(filter.startDate);
             if (filter.endDate) where.createdAt.lte = new Date(filter.endDate);
+            if (filter.role) where.role = filter.role;
         }
 
         const users = await this.prisma.user.findMany({ where });
@@ -138,6 +139,7 @@ export class StatistiqueService {
             { header: "UserID", key: "userId", width: 36 },
             { header: "Name", key: "name", width: 20 },
             { header: "Email", key: "email", width: 25 },
+            { header: "Code", key: "code", width: 15 },
             { header: "Role", key: "role", width: 15 },
             { header: "Status", key: "status", width: 15 },
             { header: "TypeCompte", key: "typeCompte", width: 20 },
@@ -168,6 +170,7 @@ export class StatistiqueService {
                 userId: u.id,
                 name: u.name,
                 email: u.email,
+                code: u.codeGenerate,
                 role: u.role,
                 status: u.status,
                 typeCompte: u.typeCompte,

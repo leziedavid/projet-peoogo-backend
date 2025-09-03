@@ -1,7 +1,7 @@
 
 import { ApiProperty, ApiPropertyOptional, OmitType, PartialType } from '@nestjs/swagger';
 import { IsNotEmpty, IsOptional, IsString, IsEnum, IsBoolean, IsDate, IsNumber, IsUUID, ValidateNested } from 'class-validator';
-import { NiveauInstruction, StatusDossier,TypeCompte} from '@prisma/client';
+import { NiveauInstruction, Role, StatusDossier,TypeCompte} from '@prisma/client';
 import { Type } from 'class-transformer';
 
 //   startDate?: string; // ISO string
@@ -23,5 +23,10 @@ export class UsersFilterDto {
     @IsOptional()
     @IsEnum(TypeCompte)
     typeCompte?: TypeCompte;
+
+    @ApiPropertyOptional({ description: 'Filtre les utilisateurs par rôle', enum: Role, example: Role.ADMIN })
+    @IsOptional()
+    @IsEnum(Role)
+    role?: Role;
 
     }

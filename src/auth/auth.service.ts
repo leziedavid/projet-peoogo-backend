@@ -558,7 +558,7 @@ export class AuthService {
             await this.localStorage.deleteFile(existingImage.fileCode);
             // await this.cloudinary.deleteFileByPublicId(existingImage.fileCode);
         }
-
+        
         // Étape 3 : Supprimer l’entrée en base (fileManager)
         if (existingImage) {
             await this.prisma.fileManager.deleteMany({
@@ -610,118 +610,214 @@ export class AuthService {
     }
 
     /** 🔍 Liste paginée de tous les utilisateurs avec relations */
-    async getAllUsers(params: PaginationParamsDto): Promise<BaseResponse<any>> {
-        const { page, limit } = params;
-        const data = await this.functionService.paginate({
-            model: 'User',
-            page: Number(page),
-            limit: Number(limit),
-            conditions: {},
-            selectAndInclude: {
-                select: null,
-                include: {
-                    wallet: true,
-                    ecommerceOrders: true,
-                    agentEnroleur: {
-                        include: {
-                            decoupage: {
-                                include: {
-                                    district: true,
-                                    region: true,
-                                    department: true,
-                                    sousPrefecture: true,
-                                    localite: true,
-                                },
-                            },
-                            activitprincipale: true,
-                            spculationprincipale: true,
-                            autresActivites: {
-                                include: { activite: true }
-                            },
-                            autresSpeculations: {
-                                include: { speculation: true }
-                            },
-                        },
-                    },
-                    agentSuperviseur: {
-                        include: {
-                            decoupage: {
-                                include: {
-                                    district: true,
-                                    region: true,
-                                    department: true,
-                                    sousPrefecture: true,
-                                    localite: true,
-                                },
-                            },
-                        },
-                    },
-                    agentControle: {
-                        include: {
-                            decoupage: {
-                                include: {
-                                    district: true,
-                                    region: true,
-                                    department: true,
-                                    sousPrefecture: true,
-                                    localite: true,
-                                },
-                            },
-                        },
-                    },
-                },
+    // async getAllUsers(params: PaginationParamsDto): Promise<BaseResponse<any>> {
+    //     const { page, limit } = params;
+    //     const data = await this.functionService.paginate({
+    //         model: 'User',
+    //         page: Number(page),
+    //         limit: Number(limit),
+    //         conditions: {},
+    //         selectAndInclude: {
+    //             select: null,
+    //             include: {
+    //                 wallet: true,
+    //                 ecommerceOrders: true,
+    //                 agentEnroleur: {
+    //                     include: {
+    //                         decoupage: {
+    //                             include: {
+    //                                 district: true,
+    //                                 region: true,
+    //                                 department: true,
+    //                                 sousPrefecture: true,
+    //                                 localite: true,
+    //                             },
+    //                         },
+    //                         activitprincipale: true,
+    //                         spculationprincipale: true,
+    //                         autresActivites: {
+    //                             include: { activite: true }
+    //                         },
+    //                         autresSpeculations: {
+    //                             include: { speculation: true }
+    //                         },
+    //                     },
+    //                 },
+    //                 agentSuperviseur: {
+    //                     include: {
+    //                         decoupage: {
+    //                             include: {
+    //                                 district: true,
+    //                                 region: true,
+    //                                 department: true,
+    //                                 sousPrefecture: true,
+    //                                 localite: true,
+    //                             },
+    //                         },
+    //                     },
+    //                 },
+    //                 agentControle: {
+    //                     include: {
+    //                         decoupage: {
+    //                             include: {
+    //                                 district: true,
+    //                                 region: true,
+    //                                 department: true,
+    //                                 sousPrefecture: true,
+    //                                 localite: true,
+    //                             },
+    //                         },
+    //                     },
+    //                 },
+    //             },
+    //         },
+    //         orderBy: { createdAt: 'desc' },
+    //     });
+
+    //     // Ajout des fichiers (image, carte, permis)
+    //     const usersWithFiles = await Promise.all(
+    //         data.data.map(async (user) => {
+
+    //             if (user.enrollementsId) {
+    //                 // Utilisateur enrolé → récupérer fichiers depuis Enrollements
+    //                 const [photo, document1, document2] = await Promise.all([
+    //                     this.prisma.fileManager.findFirst({
+    //                         where: { targetId: user.enrollementsId, fileType: 'enrollements_photo' },
+    //                         orderBy: { createdAt: 'desc' },
+    //                     }),
+    //                     this.prisma.fileManager.findFirst({
+    //                         where: { targetId: user.enrollementsId, fileType: 'enrollements_photo_document_1' },
+    //                         orderBy: { createdAt: 'desc' },
+    //                     }),
+    //                     this.prisma.fileManager.findFirst({
+    //                         where: { targetId: user.enrollementsId, fileType: 'enrollements_photo_document_2' },
+    //                         orderBy: { createdAt: 'desc' },
+    //                     }),
+    //                 ]);
+
+    //                 console.log(document1.fileUrl);
+
+    //                 return {
+    //                     ...user,
+    //                     userFiles: {
+    //                         photo: photo ? getPublicFileUrl(photo.fileUrl) : null,
+    //                         document1: document1 ? getPublicFileUrl(document1.fileUrl) : null,
+    //                         document2: document2 ? getPublicFileUrl(document2.fileUrl) : null,
+    //                     },
+    //                 };
+    //             } else {
+    //                 // Utilisateur normal → juste sa photo
+    //                 const photo = await this.prisma.fileManager.findFirst({
+    //                     where: { targetId: user.id, fileType: 'userFiles' },
+    //                     orderBy: { createdAt: 'desc' },
+    //                 });
+
+    //                 return {
+    //                     ...user,
+    //                     photo: photo ? getPublicFileUrl(photo.fileUrl) : null,
+    //                 };
+    //             }
+    //         })
+    //     );
+
+    //     return new BaseResponse(200, 'Liste des utilisateurs', {
+    //         ...data,
+    //         data: usersWithFiles,
+    //     });
+    // }
+
+
+    /** 🔍 Liste paginée de tous les utilisateurs avec relations */
+async getAllUsers(params: PaginationParamsDto): Promise<BaseResponse<any>> {
+  const { page, limit } = params;
+
+  // Récupération paginée des utilisateurs avec relations
+  const data = await this.functionService.paginate({
+    model: 'User',
+    page: Number(page),
+    limit: Number(limit),
+    conditions: {},
+    selectAndInclude: {
+      select: null,
+      include: {
+        wallet: true,
+        ecommerceOrders: true,
+        agentEnroleur: {
+          include: {
+            decoupage: {
+              include: { district: true, region: true, department: true, sousPrefecture: true, localite: true },
             },
-            orderBy: { createdAt: 'desc' },
-        });
+            activitprincipale: true,
+            spculationprincipale: true,
+            autresActivites: { include: { activite: true } },
+            autresSpeculations: { include: { speculation: true } },
+          },
+        },
+        agentSuperviseur: {
+          include: {
+            decoupage: {
+              include: { district: true, region: true, department: true, sousPrefecture: true, localite: true },
+            },
+          },
+        },
+        agentControle: {
+          include: {
+            decoupage: {
+              include: { district: true, region: true, department: true, sousPrefecture: true, localite: true },
+            },
+          },
+        },
+      },
+    },
+    orderBy: { createdAt: 'desc' },
+  });
 
-        // Ajout des fichiers (image, carte, permis)
-        const usersWithFiles = await Promise.all(
-            data.data.map(async (user) => {
-                if (user.enrollementsId) {
-                    // Utilisateur enrolé → récupérer fichiers depuis Enrollements
-                    const [photo, document1, document2] = await Promise.all([
-                        this.prisma.fileManager.findFirst({
-                            where: { targetId: user.enrollementsId, fileType: 'enrollements_photo' },
-                            orderBy: { createdAt: 'desc' },
-                        }),
-                        this.prisma.fileManager.findFirst({
-                            where: { targetId: user.enrollementsId, fileType: 'enrollements_photo_document_1' },
-                            orderBy: { createdAt: 'desc' },
-                        }),
-                        this.prisma.fileManager.findFirst({
-                            where: { targetId: user.enrollementsId, fileType: 'enrollements_photo_document_2' },
-                            orderBy: { createdAt: 'desc' },
-                        }),
-                    ]);
+  const userIds = data.data.map(u => u.id);
+  const enrollementsIds = data.data.filter(u => u.enrollementsId).map(u => u.enrollementsId);
 
-                    return {
-                        ...user,
-                        userFiles: {
-                            photo: photo ? getPublicFileUrl(photo.fileUrl) : null,
-                            document1: document1 ? getPublicFileUrl(document1.fileUrl) : null,
-                            document2: document2 ? getPublicFileUrl(document2.fileUrl) : null,
-                        },
-                    };
-                } else {
-                    // Utilisateur normal → juste sa photo
-                    const photo = await this.prisma.fileManager.findFirst({
-                        where: { targetId: user.id, fileType: 'userFiles' },
-                        orderBy: { createdAt: 'desc' },
-                    });
+  // Récupérer tous les fichiers pour tous les utilisateurs et enrollements en une seule requête
+  const allFiles = await this.prisma.fileManager.findMany({
+    where: {
+      OR: [
+        { targetId: { in: userIds }, fileType: 'userFiles' },
+        { targetId: { in: enrollementsIds }, fileType: { in: ['enrollements_photo', 'enrollements_photo_document_1', 'enrollements_photo_document_2'] } },
+      ],
+    },
+    orderBy: { createdAt: 'desc' },
+  });
 
-                    return {
-                        ...user,
-                        photo: photo ? getPublicFileUrl(photo.fileUrl) : null,
-                    };
-                }
-            })
-        );
+  // Créer un mapping pour accéder facilement aux fichiers par targetId et fileType
+  const filesMap: Record<string, Record<string, string>> = {};
+  for (const file of allFiles) {
+    if (!filesMap[file.targetId]) filesMap[file.targetId] = {};
+    filesMap[file.targetId][file.fileType] = getPublicFileUrl(file.fileUrl);
+  }
 
-        return new BaseResponse(200, 'Liste des utilisateurs', {
-            ...data,
-            data: usersWithFiles,
-        });
+  // Associer les fichiers à chaque utilisateur
+  const usersWithFiles = data.data.map(user => {
+    if (user.enrollementsId) {
+      return {
+        ...user,
+        userFiles: {
+          photo: filesMap[user.enrollementsId]?.enrollements_photo || null,
+          document1: filesMap[user.enrollementsId]?.enrollements_photo_document_1 || null,
+          document2: filesMap[user.enrollementsId]?.enrollements_photo_document_2 || null,
+        },
+      };
+    } else {
+      return {
+        ...user,
+        photo: filesMap[user.id]?.userFiles || null,
+      };
     }
+  });
+
+  return new BaseResponse(200, 'Liste des utilisateurs', {
+    ...data,
+    data: usersWithFiles,
+  });
+}
+
 
     async getAllUsersByFilters(filters: FilterUserDto, params: PaginationParamsDto): Promise<BaseResponse<any>> {
         const { page, limit } = params;

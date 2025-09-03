@@ -617,9 +617,6 @@ export class EnrollementsService {
                     photo: photo ? getPublicFileUrl(photo.fileUrl) : null,
                     document1: document1 ? getPublicFileUrl(document1.fileUrl) : null,
                     document2: document2 ? getPublicFileUrl(document2.fileUrl) : null,
-                    // photo: photo?.fileUrl || null,
-                    // document1: document1?.fileUrl || null,
-                    // document2: document2?.fileUrl || null,
                 };
             })
         );
