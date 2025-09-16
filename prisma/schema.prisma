@@ -111,6 +111,7 @@ enum OderPaiementStatus {
   ANNULE
   REMBOURSE
 }
+
 enum Network {
   MOOV
   ORANGE
@@ -126,7 +127,6 @@ enum DeliveryMethod {
   PICKUP
   DROP
 }
-
 
 // Type de message
 enum MessageSender {
@@ -151,52 +151,63 @@ enum ContactObjet {
   autre
 }
 
+// --- ENUMS pour pub ---
+enum TypeFile {
+  IMAGE
+  VIDEO
+}
+
+enum Status {
+  ACTIVE
+  INACTIVE
+}
+
 // TABLES
 model District {
   id         String      @id @default(uuid())
   nom        String
-  statut Boolean? @default(true)
+  statut     Boolean?    @default(true)
   regions    Region[]
   decoupages Decoupage[]
 }
 
 model Region {
-  id           String      @id @default(uuid())
-  nom          String
-  statut Boolean? @default(true)
-  districtId   String
-  district     District   @relation(fields: [districtId], references: [id], onDelete: Cascade)
-  departments  Department[]
-  decoupages   Decoupage[]
-}
-
-model Department {
-  id          String      @id @default(uuid())
+  id          String       @id @default(uuid())
   nom         String
-  statut Boolean? @default(true)
-  regionId    String
-  region      Region      @relation(fields: [regionId], references: [id], onDelete: Cascade)
-  sousPrefectures SousPrefecture[]
+  statut      Boolean?     @default(true)
+  districtId  String
+  district    District     @relation(fields: [districtId], references: [id], onDelete: Cascade)
+  departments Department[]
   decoupages  Decoupage[]
 }
 
+model Department {
+  id              String           @id @default(uuid())
+  nom             String
+  statut          Boolean?         @default(true)
+  regionId        String
+  region          Region           @relation(fields: [regionId], references: [id], onDelete: Cascade)
+  sousPrefectures SousPrefecture[]
+  decoupages      Decoupage[]
+}
+
 model SousPrefecture {
-  id            String       @id @default(uuid())
-  nom           String
-  statut Boolean? @default(true)
-  departmentId  String
-  department    Department   @relation(fields: [departmentId], references: [id], onDelete: Cascade)
-  localites     Localite[]
-  decoupages    Decoupage[]
+  id           String      @id @default(uuid())
+  nom          String
+  statut       Boolean?    @default(true)
+  departmentId String
+  department   Department  @relation(fields: [departmentId], references: [id], onDelete: Cascade)
+  localites    Localite[]
+  decoupages   Decoupage[]
 }
 
 model Localite {
-  id                String          @id @default(uuid())
-  nom               String
-  statut Boolean? @default(true)
+  id               String         @id @default(uuid())
+  nom              String
+  statut           Boolean?       @default(true)
   sousPrefectureId String
-  sousPrefecture    SousPrefecture @relation(fields: [sousPrefectureId], references: [id], onDelete: Cascade)
-  decoupages        Decoupage[]
+  sousPrefecture   SousPrefecture @relation(fields: [sousPrefectureId], references: [id], onDelete: Cascade)
+  decoupages       Decoupage[]
 }
 
 model Decoupage {
@@ -217,33 +228,37 @@ model Decoupage {
 }
 
 model User {
-  id                String            @id @default(uuid())
-  email             String            @unique
-  password          String
-  codeGenerate      String?
-  passwordGenerate  String?
-  enrollementsId    String?
-  name              String
-  role              Role
-  status            UserStatus        @default(INACTIVE)
-  phoneCountryCode  String?
-  phoneNumber       String?           @unique
-  typeCompte TypeCompte?
-  createdAt         DateTime          @default(now())
-  updatedAt         DateTime          @updatedAt
-  wallet            Wallet?
-  ecommerceOrders   EcommerceOrder[]
-  addedProducts         Product[]         @relation("AddedByProduct")
-  addedEcommerceOrders  EcommerceOrder[]  @relation("AddedByEcommerceOrder")
-  agentEnroleur     Enrollements[]    @relation("AgentEnroleur")
-  agentSuperviseur  Enrollements[]    @relation("AgentSuperviseur")
-  agentControle     Enrollements[]    @relation("UserControl")
+  id                   String           @id @default(uuid())
+  email                String           @unique
+  password             String
+  codeGenerate         String?
+  passwordGenerate     String?
+  enrollementsId       String?
+  name                 String
+  role                 Role
+  status               UserStatus       @default(INACTIVE)
+  phoneCountryCode     String?
+  phoneNumber          String?          @unique
+  typeCompte           TypeCompte?
+  createdAt            DateTime         @default(now())
+  updatedAt            DateTime         @updatedAt
+  wallet               Wallet?
+  ecommerceOrders      EcommerceOrder[]
+  addedProducts        Product[]        @relation("AddedByProduct")
+  addedEcommerceOrders EcommerceOrder[] @relation("AddedByEcommerceOrder")
+  agentEnroleur        Enrollements[]   @relation("AgentEnroleur")
+  agentSuperviseur     Enrollements[]   @relation("AgentSuperviseur")
+  agentControle        Enrollements[]   @relation("UserControl")
   // Transactions
   transactions         Transaction[]
-  notifications      Notification[]
-  messagesSent Message[] @relation("UserMessages")
-  reversements       Reversement[]   @relation("ProducerReversements")
+  notifications        Notification[]
+  messagesSent         Message[]        @relation("UserMessages")
+  reversements         Reversement[]    @relation("ProducerReversements")
 
+  // 🆕 Nouvelles relations
+  addedSliders    Slider[]
+  addedPublicites Publicite[]
+  addedReglages   Reglage[]
 }
 
 model Wallet {
@@ -257,7 +272,7 @@ model Wallet {
   createdAt     DateTime      @default(now())
   updatedAt     DateTime      @default(now()) @updatedAt
   accountNumber String        @unique // Numéro de compte unique
-  reversements       Reversement[]
+  reversements  Reversement[]
 }
 
 model Transaction {
@@ -273,83 +288,83 @@ model Transaction {
   description       String? // ✅ Ex: "Commission 18% prélevée pour la commande XYZ"
   createdAt         DateTime        @default(now())
   updatedAt         DateTime        @default(now()) @updatedAt
-  reversement       Reversement? @relation(name: "ReversementToTransaction")
+  reversement       Reversement?    @relation(name: "ReversementToTransaction")
 }
 
 model Product {
-  id                  String              @id @default(uuid())
-  nom                 String
-  code                String              @unique
-  description         String?
-  quantite            Float
-  unite               String
-  imageUrl            String?
-  prixUnitaire        Float
-  prixEnGros          Float?              // <-- prix pour les achats en gros (optionnel)
-  paymentMethod       String              // Méthode de paiement (e.g. Espèce, Orange Money)
-  saleType            String              // Type de vente (gros/détail)
-  status              ProductStatus       @default(ACTIVE)
-  typeActeur          TypeCompte          // Enumération du type d'acteur
-  disponibleDe        DateTime            // Date de début de disponibilité
-  disponibleJusqua    DateTime            // Date de fin
-  image               String?             // Image principale (optionnelle)
-  autreImage          String?             // Image secondaire (optionnelle)
-  codeUsers           String              // ⬅️ Code unique du producteur réel (ex : ENROLEMENTxxxxx)
-  addedById           String              // Peut être un agent
-  createdAt           DateTime            @default(now())
-  updatedAt           DateTime            @updatedAt
-  addedBy             User                @relation("AddedByProduct", fields: [addedById], references: [id], onDelete: Cascade)
-  decoupageId         String
-  decoupage           Decoupage           @relation(fields: [decoupageId], references: [id], onDelete: Cascade)
-  EcommerceOrderItem  EcommerceOrderItem[]
+  id                 String               @id @default(uuid())
+  nom                String
+  code               String               @unique
+  description        String?
+  quantite           Float
+  unite              String
+  imageUrl           String?
+  prixUnitaire       Float
+  prixEnGros         Float? // <-- prix pour les achats en gros (optionnel)
+  paymentMethod      String // Méthode de paiement (e.g. Espèce, Orange Money)
+  saleType           String // Type de vente (gros/détail)
+  status             ProductStatus        @default(ACTIVE)
+  typeActeur         TypeCompte // Enumération du type d'acteur
+  disponibleDe       DateTime // Date de début de disponibilité
+  disponibleJusqua   DateTime // Date de fin
+  image              String? // Image principale (optionnelle)
+  autreImage         String? // Image secondaire (optionnelle)
+  codeUsers          String // ⬅️ Code unique du producteur réel (ex : ENROLEMENTxxxxx)
+  addedById          String // Peut être un agent
+  createdAt          DateTime             @default(now())
+  updatedAt          DateTime             @updatedAt
+  addedBy            User                 @relation("AddedByProduct", fields: [addedById], references: [id], onDelete: Cascade)
+  decoupageId        String
+  decoupage          Decoupage            @relation(fields: [decoupageId], references: [id], onDelete: Cascade)
+  EcommerceOrderItem EcommerceOrderItem[]
 }
 
 model Enrollements {
-  id                             String           @id @default(uuid())
-  code                           String           @unique
-  TypeCompte                     TypeCompte
-  agent_id                       String
-  agent_enroleur                 User?            @relation("AgentEnroleur", fields: [agent_id], references: [id], onDelete: Cascade)
-  agent_superviseur_id           String?
-  agent_superviseur              User?            @relation("AgentSuperviseur", fields: [agent_superviseur_id], references: [id])
-  user_control_id                String?
-  user_control                   User?            @relation("UserControl", fields: [user_control_id], references: [id])
+  id                   String     @id @default(uuid())
+  code                 String     @unique
+  TypeCompte           TypeCompte
+  agent_id             String
+  agent_enroleur       User?      @relation("AgentEnroleur", fields: [agent_id], references: [id], onDelete: Cascade)
+  agent_superviseur_id String?
+  agent_superviseur    User?      @relation("AgentSuperviseur", fields: [agent_superviseur_id], references: [id])
+  user_control_id      String?
+  user_control         User?      @relation("UserControl", fields: [user_control_id], references: [id])
 
-  confirm_validation_control     Boolean?         @default(false)
-  numero_lot                     String?
-  validation_control             Boolean?         @default(false)
-  date_validation_control        DateTime?
+  confirm_validation_control      Boolean?  @default(false)
+  numero_lot                      String?
+  validation_control              Boolean?  @default(false)
+  date_validation_control         DateTime?
   date_confirm_validation_control DateTime?
-  commentaire_controle           String? // Champ pour les motifs de rejet saisis par le contrôleur
+  commentaire_controle            String? // Champ pour les motifs de rejet saisis par le contrôleur
 
-  is_deleted                     Boolean           @default(false)
-  is_select_lot                  String? // id de l'agent qui traite
-  status_dossier                 StatusDossier?
-  time_enrolment                 Int?
-  start_date                     DateTime?
-  end_date                       DateTime?
-  nom                            String
-  prenom                         String
-  datedenaissance                DateTime
-  lieudenaissance                String
-  sexe                           String
-  site                           String?
-  nationalit                     String?
-  situationmatrimoniale          String
-  niveaudinstruction             NiveauInstruction
-  numroprincipal                 String?  @unique
-  languelocaleparle              String
-  autreslanguelocaleparle        String?
+  is_deleted              Boolean           @default(false)
+  is_select_lot           String? // id de l'agent qui traite
+  status_dossier          StatusDossier?
+  time_enrolment          Int?
+  start_date              DateTime?
+  end_date                DateTime?
+  nom                     String
+  prenom                  String
+  datedenaissance         DateTime
+  lieudenaissance         String
+  sexe                    String
+  site                    String?
+  nationalit              String?
+  situationmatrimoniale   String
+  niveaudinstruction      NiveauInstruction
+  numroprincipal          String?           @unique
+  languelocaleparle       String
+  autreslanguelocaleparle String?
 
-  decoupageId                    String
-  decoupage                      Decoupage        @relation("DecoupageEnrollements", fields: [decoupageId], references: [id], onDelete: Cascade)
+  decoupageId String
+  decoupage   Decoupage @relation("DecoupageEnrollements", fields: [decoupageId], references: [id], onDelete: Cascade)
 
-  campementquartier              String?
-  coordonneesgeo                 String?
-  activitprincipaleId            String?
-  activitprincipale              Activite?        @relation("ActivitePrincipale", fields: [activitprincipaleId], references: [id])
-  spculationprincipaleId         String?
-  spculationprincipale           Speculation?     @relation("SpeculationPrincipale", fields: [spculationprincipaleId], references: [id])
+  campementquartier      String?
+  coordonneesgeo         String?
+  activitprincipaleId    String?
+  activitprincipale      Activite?    @relation("ActivitePrincipale", fields: [activitprincipaleId], references: [id])
+  spculationprincipaleId String?
+  spculationprincipale   Speculation? @relation("SpeculationPrincipale", fields: [spculationprincipaleId], references: [id])
 
   superficiedevotreparcellecultu Float?
   indiquezlasuperficieenha       Float?
@@ -357,88 +372,35 @@ model Enrollements {
   prcisezlenombre                Int?
   moyendestockage                String?
 
-  autresActivites                AutreActivite[]      @relation("EnrollementActivites")
-  autresSpeculations             AutreSpeculation[]   @relation("EnrollementSpeculations")
+  autresActivites    AutreActivite[]    @relation("EnrollementActivites")
+  autresSpeculations AutreSpeculation[] @relation("EnrollementSpeculations")
 
-  createdAt                      DateTime           @default(now())
-  updatedAt                      DateTime           @updatedAt
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 }
 
-// model Enrollements {
-//   id                          String           @id @default(uuid())
-//   code                        String           @unique
-//   TypeCompte                  TypeCompte
-//   agent_id                    String
-//   agent_enroleur              User?             @relation("AgentEnroleur", fields: [agent_id], references: [id], onDelete: Cascade)
-//   agent_superviseur_id        String?
-//   agent_superviseur           User ?            @relation("AgentSuperviseur", fields: [agent_superviseur_id], references: [id])
-//   user_control_id             String?
-//   user_control                User?            @relation("UserControl", fields: [user_control_id], references: [id])
-//   confirm_validation_control  Boolean?
-//   numero_lot                  String?
-//   validation_control          Boolean?
-//   date_validation_control     DateTime?
-//   date_confirm_validation_control DateTime?
-//   commentaire_controle        String? // Champ pour les motifs de rejet saisis par le contrôleur
-//   is_deleted                  Boolean          @default(false)
-//   is_select_lot               String? // id de l'agent qui traite
-//   status_dossier              StatusDossier?
-//   time_enrolment              Int?
-//   start_date                  DateTime?
-//   end_date                    DateTime?
-//   nom                         String
-//   prenom                      String
-//   datedenaissance             DateTime
-//   lieudenaissance             String
-//   sexe                        String
-//   site                        String?
-//   nationalit                  String?
-//   situationmatrimoniale       String
-//   niveaudinstruction          NiveauInstruction
-//   numroprincipal              String?  @unique
-//   languelocaleparle           String
-//   autreslanguelocaleparle     String?
-//   decoupageId                 String
-//   decoupage                   Decoupage        @relation("DecoupageEnrollements", fields: [decoupageId], references: [id], onDelete: Cascade)
-//   campementquartier           String?
-//   coordonneesgeo              String?
-//   activitprincipaleId         String?
-//   activitprincipale           Activite?        @relation("ActivitePrincipale", fields: [activitprincipaleId], references: [id])
-//   spculationprincipaleId      String?
-//   spculationprincipale        Speculation?     @relation("SpeculationPrincipale", fields: [spculationprincipaleId], references: [id])
-//   superficiedevotreparcellecultu Float?
-//   indiquezlasuperficieenha    Float?
-//   quantitproduction           Float?
-//   prcisezlenombre             Int?
-//   moyendestockage             String?
-//   autresActivites                AutreActivite[]     @relation("EnrollementActivites")
-//   autresSpeculations             AutreSpeculation[]  @relation("EnrollementSpeculations")
-//   createdAt         DateTime          @default(now())
-//   updatedAt         DateTime          @updatedAt
-// }
-
 model AutreActivite {
-  id            String      @id @default(uuid())
+  id            String       @id @default(uuid())
   code          String?
   activiteId    String
   userId        String?
   enrollementId String
-  activite      Activite    @relation(fields: [activiteId], references: [id], onDelete: Cascade)
+  activite      Activite     @relation(fields: [activiteId], references: [id], onDelete: Cascade)
   enrollement   Enrollements @relation("EnrollementActivites", fields: [enrollementId], references: [id], onDelete: Cascade)
-  createdAt     DateTime    @default(now())
-  updatedAt     DateTime    @updatedAt
+  createdAt     DateTime     @default(now())
+  updatedAt     DateTime     @updatedAt
 }
 
 model AutreSpeculation {
-  id             String       @id @default(uuid())
-  code           String?
-  speculationId  String
-  userId         String?
-  enrollementId  String
-  speculation    Speculation  @relation(fields: [speculationId], references: [id], onDelete: Cascade)
-  enrollement    Enrollements @relation("EnrollementSpeculations", fields: [enrollementId], references: [id], onDelete: Cascade)
-  createdAt      DateTime     @default(now())
-  updatedAt      DateTime     @updatedAt
+  id            String       @id @default(uuid())
+  code          String?
+  speculationId String
+  userId        String?
+  enrollementId String
+  speculation   Speculation  @relation(fields: [speculationId], references: [id], onDelete: Cascade)
+  enrollement   Enrollements @relation("EnrollementSpeculations", fields: [enrollementId], references: [id], onDelete: Cascade)
+  createdAt     DateTime     @default(now())
+  updatedAt     DateTime     @updatedAt
 }
 
 model EcommerceOrder {
@@ -449,8 +411,8 @@ model EcommerceOrder {
   paymentStatus  OderPaiementStatus   @default(EN_ATTENTE_DE_PAIEMENT) // ✅ Ajouté ici
   paymentMethod  PaymentMethod
   deliveryMethod DeliveryMethod
-  network        Network?             // ✅ Ajouté ici
-  paiementNumber String?              // ✅ Ajouté ici
+  network        Network? // ✅ Ajouté ici
+  paiementNumber String? // ✅ Ajouté ici
   amount         Float?
   canceledAt     DateTime?
   createdAt      DateTime             @default(now())
@@ -459,7 +421,7 @@ model EcommerceOrder {
   items          EcommerceOrderItem[]
   addedById      String
   addedBy        User                 @relation("AddedByEcommerceOrder", fields: [addedById], references: [id], onDelete: Cascade)
-  reversements       Reversement[]
+  reversements   Reversement[]
 }
 
 model EcommerceOrderItem {
@@ -471,25 +433,24 @@ model EcommerceOrderItem {
   quantity         Int            @default(1)
   prixUnitaire     Float
   reverser         Int?           @default(0) // 0 = non reversé, 1 = reversé
-
 }
 
 model Activite {
-  id                  String         @id @default(uuid())
-  nom       String   @unique
-  createdAt  DateTime @default(now())
-  updatedAt  DateTime @updatedAt
-  activitprincipale   Enrollements[] @relation("ActivitePrincipale")
-  autresActivites    AutreActivite[]
+  id                String          @id @default(uuid())
+  nom               String          @unique
+  createdAt         DateTime        @default(now())
+  updatedAt         DateTime        @updatedAt
+  activitprincipale Enrollements[]  @relation("ActivitePrincipale")
+  autresActivites   AutreActivite[]
 }
 
 model Speculation {
-  id                       String         @id @default(uuid())
-  nom       String   @unique
-  createdAt  DateTime @default(now())
-  updatedAt  DateTime @updatedAt
-  spculationprincipale     Enrollements[] @relation("SpeculationPrincipale")
-  autreSpeculations        AutreSpeculation[]
+  id                   String             @id @default(uuid())
+  nom                  String             @unique
+  createdAt            DateTime           @default(now())
+  updatedAt            DateTime           @updatedAt
+  spculationprincipale Enrollements[]     @relation("SpeculationPrincipale")
+  autreSpeculations    AutreSpeculation[]
 }
 
 model FileManager {
@@ -521,16 +482,15 @@ model Notification {
   updatedAt   DateTime           @default(now()) @updatedAt
 }
 
-
 model Message {
-  id        String        @id @default(uuid()) // UUID comme identifiant principal
-  label     String?
-  text      String?
-  imageUrl  String?
-  timestamp DateTime      @default(now())
-  sender    MessageSender
+  id         String        @id @default(uuid()) // UUID comme identifiant principal
+  label      String?
+  text       String?
+  imageUrl   String?
+  timestamp  DateTime      @default(now())
+  sender     MessageSender
   senderId   String
-  senderUser User   @relation("UserMessages", fields: [senderId], references: [id], onDelete: Cascade)
+  senderUser User          @relation("UserMessages", fields: [senderId], references: [id], onDelete: Cascade)
 
   repliedToId String? // doit être String pour matcher l'id de Message
   repliedTo   Message?  @relation("ReplyTo", fields: [repliedToId], references: [id])
@@ -542,15 +502,14 @@ model Message {
   updatedAt DateTime @updatedAt
 }
 
-
 model Reversement {
-  id                 String          @id @default(uuid())
+  id                 String         @id @default(uuid())
   // 🔗 Producteur qui reçoit le reversement
   producerId         String
-  producer           User            @relation("ProducerReversements", fields: [producerId], references: [id], onDelete: Cascade)
+  producer           User           @relation("ProducerReversements", fields: [producerId], references: [id], onDelete: Cascade)
   // 🔗 Commande concernée
   orderId            String
-  order              EcommerceOrder  @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  order              EcommerceOrder @relation(fields: [orderId], references: [id], onDelete: Cascade)
   // 📦 Données financières
   totalQuantity      Int
   totalAmount        Float
@@ -558,24 +517,83 @@ model Reversement {
   producerEarnings   Float
   // 🔗 Wallet du producteur
   walletId           String
-  wallet             Wallet          @relation(fields: [walletId], references: [id], onDelete: Cascade)
+  wallet             Wallet         @relation(fields: [walletId], references: [id], onDelete: Cascade)
   // 🔗 Transaction associée (producteur)
-  transactionId      String  @unique
-  transaction        Transaction     @relation(name: "ReversementToTransaction", fields: [transactionId], references: [id], onDelete: Cascade)
+  transactionId      String         @unique
+  transaction        Transaction    @relation(name: "ReversementToTransaction", fields: [transactionId], references: [id], onDelete: Cascade)
   // 🔹 Code unique du reversement
-  transactionNumber  String  @unique
-  createdAt          DateTime        @default(now())
-  updatedAt          DateTime        @updatedAt
+  transactionNumber  String         @unique
+  createdAt          DateTime       @default(now())
+  updatedAt          DateTime       @updatedAt
 }
 
 model Contact {
-  id           String   @id @default(cuid())
-  nomPrenom    String
-  email        String
-  phone        String
-  objets       ContactObjet
-  contents     String
-  source       String?   @default("contact_form_agricole")
-  timestamp    DateTime  @default(now())
+  id        String       @id @default(cuid())
+  nomPrenom String
+  email     String
+  phone     String
+  objets    ContactObjet
+  contents  String
+  source    String?      @default("contact_form_agricole")
+  timestamp DateTime     @default(now())
+
   @@map("contacts") // nom de table en BD
+}
+
+// --- NOUVELLES TABLES ---
+
+model Slider {
+  id          String  @id @default(uuid())
+  imageUrl    String?
+  label       String?
+  description String?
+  status      Status   @default(ACTIVE) // ✅ Utilisation de l'enum Status
+  // Relation avec User (qui a ajouté le slider)
+  addedById String
+  addedBy   User   @relation(fields: [addedById], references: [id], onDelete: Cascade)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model Publicite {
+  id          String   @id @default(uuid())
+  title       String
+  smallTitle  String?
+  description String?
+  files       String? // URL ou chemin du fichier (image/vidéo)
+  typeFiles   TypeFile // ENUM IMAGE ou VIDEO
+  status      Status   @default(ACTIVE) // ✅ Utilisation de l'enum Status
+  // Relation avec User (qui a ajouté la pub)
+  addedById String
+  addedBy   User   @relation(fields: [addedById], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model Reglage {
+  id                String  @id @default(uuid())
+  footerDescription String?
+  assistanceLine    String? // Ligne d’assistance
+  emplacement       String? // Localisation
+  email             String?
+  fbUrl             String?
+  linkedinUrl       String?
+  xUrl              String?
+  headerLogo        String?   // ✅ Logo d’en-tête (upload)
+  footerLogo        String?   // ✅ Logo de pied de page (upload)
+  status      Status   @default(ACTIVE) // ✅ Utilisation de l'enum Status
+  addedById String
+  addedBy   User     @relation(fields: [addedById], references: [id], onDelete: Cascade)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+model Partenaire {
+  id          String   @id @default(uuid())
+  libeller    String
+  description String?
+  logo        String?
+  status      Status   @default(ACTIVE) // ✅ Utilisation de l'enum Status
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
 }

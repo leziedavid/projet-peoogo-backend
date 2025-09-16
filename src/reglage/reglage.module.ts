@@ -1,15 +1,15 @@
 import { Module } from '@nestjs/common';
-import { ProductController } from './product.controller';
-import { ProductService } from './product.service';
-import { PrismaModule } from 'src/prisma/prisma.module';
-import { CloudinaryService } from 'src/utils/cloudinary.service';
-import { FunctionService } from 'src/utils/pagination.service';
-
+import { ReglageController } from './reglage.controller';
+import { ReglageService } from './reglage.service';
 import { ConfigModule, ConfigService } from '@nestjs/config';
 import { JwtModule } from '@nestjs/jwt';
 import { PassportModule } from '@nestjs/passport';
-import { JwtStrategy } from 'src/strategies/jwt.strategy';
+import { PrismaModule } from 'src/prisma/prisma.module';
+import { CloudinaryService } from 'src/utils/cloudinary.service';
+import { FunctionService } from 'src/utils/pagination.service';
 import { LocalStorageService } from 'src/utils/LocalStorageService';
+import { JwtStrategy } from 'src/strategies/jwt.strategy';
+
 @Module({
 
     imports: [
@@ -27,9 +27,9 @@ import { LocalStorageService } from 'src/utils/LocalStorageService';
     PassportModule.register({ defaultStrategy: 'jwt' }),
     PrismaModule,
   ],
-  providers: [ProductService,CloudinaryService,FunctionService,JwtStrategy,LocalStorageService],  // <-- JwtStrategy ajouté ici
+  providers: [ReglageService,CloudinaryService,FunctionService,JwtStrategy,LocalStorageService],  // <-- JwtStrategy ajouté ici
   exports: [PassportModule, JwtModule],
-  controllers: [ProductController],
-
+  
+  controllers: [ReglageController],
 })
-export class ProductModule {}
+export class ReglageModule {}

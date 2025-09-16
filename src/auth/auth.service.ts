@@ -25,6 +25,7 @@ import * as path from 'path';
 import { getPublicFileUrl } from 'src/utils/helper';
 import { ConfigService } from '@nestjs/config';
 
+
 @Injectable()
 export class AuthService {
     constructor(
@@ -558,7 +559,7 @@ export class AuthService {
             await this.localStorage.deleteFile(existingImage.fileCode);
             // await this.cloudinary.deleteFileByPublicId(existingImage.fileCode);
         }
-        
+
         // Étape 3 : Supprimer l’entrée en base (fileManager)
         if (existingImage) {
             await this.prisma.fileManager.deleteMany({
@@ -728,95 +729,95 @@ export class AuthService {
 
 
     /** 🔍 Liste paginée de tous les utilisateurs avec relations */
-async getAllUsers(params: PaginationParamsDto): Promise<BaseResponse<any>> {
-  const { page, limit } = params;
+    async getAllUsers(params: PaginationParamsDto): Promise<BaseResponse<any>> {
+        const { page, limit } = params;
 
-  // Récupération paginée des utilisateurs avec relations
-  const data = await this.functionService.paginate({
-    model: 'User',
-    page: Number(page),
-    limit: Number(limit),
-    conditions: {},
-    selectAndInclude: {
-      select: null,
-      include: {
-        wallet: true,
-        ecommerceOrders: true,
-        agentEnroleur: {
-          include: {
-            decoupage: {
-              include: { district: true, region: true, department: true, sousPrefecture: true, localite: true },
+        // Récupération paginée des utilisateurs avec relations
+        const data = await this.functionService.paginate({
+            model: 'User',
+            page: Number(page),
+            limit: Number(limit),
+            conditions: {},
+            selectAndInclude: {
+                select: null,
+                include: {
+                    wallet: true,
+                    ecommerceOrders: true,
+                    agentEnroleur: {
+                        include: {
+                            decoupage: {
+                                include: { district: true, region: true, department: true, sousPrefecture: true, localite: true },
+                            },
+                            activitprincipale: true,
+                            spculationprincipale: true,
+                            autresActivites: { include: { activite: true } },
+                            autresSpeculations: { include: { speculation: true } },
+                        },
+                    },
+                    agentSuperviseur: {
+                        include: {
+                            decoupage: {
+                                include: { district: true, region: true, department: true, sousPrefecture: true, localite: true },
+                            },
+                        },
+                    },
+                    agentControle: {
+                        include: {
+                            decoupage: {
+                                include: { district: true, region: true, department: true, sousPrefecture: true, localite: true },
+                            },
+                        },
+                    },
+                },
             },
-            activitprincipale: true,
-            spculationprincipale: true,
-            autresActivites: { include: { activite: true } },
-            autresSpeculations: { include: { speculation: true } },
-          },
-        },
-        agentSuperviseur: {
-          include: {
-            decoupage: {
-              include: { district: true, region: true, department: true, sousPrefecture: true, localite: true },
+            orderBy: { createdAt: 'desc' },
+        });
+
+        const userIds = data.data.map(u => u.id);
+        const enrollementsIds = data.data.filter(u => u.enrollementsId).map(u => u.enrollementsId);
+
+        // Récupérer tous les fichiers pour tous les utilisateurs et enrollements en une seule requête
+        const allFiles = await this.prisma.fileManager.findMany({
+            where: {
+                OR: [
+                    { targetId: { in: userIds }, fileType: 'userFiles' },
+                    { targetId: { in: enrollementsIds }, fileType: { in: ['enrollements_photo', 'enrollements_photo_document_1', 'enrollements_photo_document_2'] } },
+                ],
             },
-          },
-        },
-        agentControle: {
-          include: {
-            decoupage: {
-              include: { district: true, region: true, department: true, sousPrefecture: true, localite: true },
-            },
-          },
-        },
-      },
-    },
-    orderBy: { createdAt: 'desc' },
-  });
+            orderBy: { createdAt: 'desc' },
+        });
 
-  const userIds = data.data.map(u => u.id);
-  const enrollementsIds = data.data.filter(u => u.enrollementsId).map(u => u.enrollementsId);
+        // Créer un mapping pour accéder facilement aux fichiers par targetId et fileType
+        const filesMap: Record<string, Record<string, string>> = {};
+        for (const file of allFiles) {
+            if (!filesMap[file.targetId]) filesMap[file.targetId] = {};
+            filesMap[file.targetId][file.fileType] = getPublicFileUrl(file.fileUrl);
+        }
 
-  // Récupérer tous les fichiers pour tous les utilisateurs et enrollements en une seule requête
-  const allFiles = await this.prisma.fileManager.findMany({
-    where: {
-      OR: [
-        { targetId: { in: userIds }, fileType: 'userFiles' },
-        { targetId: { in: enrollementsIds }, fileType: { in: ['enrollements_photo', 'enrollements_photo_document_1', 'enrollements_photo_document_2'] } },
-      ],
-    },
-    orderBy: { createdAt: 'desc' },
-  });
+        // Associer les fichiers à chaque utilisateur
+        const usersWithFiles = data.data.map(user => {
+            if (user.enrollementsId) {
+                return {
+                    ...user,
+                    userFiles: {
+                        photo: filesMap[user.enrollementsId]?.enrollements_photo || null,
+                        document1: filesMap[user.enrollementsId]?.enrollements_photo_document_1 || null,
+                        document2: filesMap[user.enrollementsId]?.enrollements_photo_document_2 || null,
+                    },
+                };
+            } else {
+                return {
+                    ...user,
+                    photo: filesMap[user.id]?.userFiles || null,
+                };
+            }
+        });
 
-  // Créer un mapping pour accéder facilement aux fichiers par targetId et fileType
-  const filesMap: Record<string, Record<string, string>> = {};
-  for (const file of allFiles) {
-    if (!filesMap[file.targetId]) filesMap[file.targetId] = {};
-    filesMap[file.targetId][file.fileType] = getPublicFileUrl(file.fileUrl);
-  }
-
-  // Associer les fichiers à chaque utilisateur
-  const usersWithFiles = data.data.map(user => {
-    if (user.enrollementsId) {
-      return {
-        ...user,
-        userFiles: {
-          photo: filesMap[user.enrollementsId]?.enrollements_photo || null,
-          document1: filesMap[user.enrollementsId]?.enrollements_photo_document_1 || null,
-          document2: filesMap[user.enrollementsId]?.enrollements_photo_document_2 || null,
-        },
-      };
-    } else {
-      return {
-        ...user,
-        photo: filesMap[user.id]?.userFiles || null,
-      };
+        return new BaseResponse(200, 'Liste des utilisateurs', {
+            ...data,
+            data: usersWithFiles,
+        });
     }
-  });
-
-  return new BaseResponse(200, 'Liste des utilisateurs', {
-    ...data,
-    data: usersWithFiles,
-  });
-}
 
 
     async getAllUsersByFilters(filters: FilterUserDto, params: PaginationParamsDto): Promise<BaseResponse<any>> {

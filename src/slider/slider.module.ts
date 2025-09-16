@@ -1,15 +1,15 @@
 import { Module } from '@nestjs/common';
-import { ProductController } from './product.controller';
-import { ProductService } from './product.service';
-import { PrismaModule } from 'src/prisma/prisma.module';
-import { CloudinaryService } from 'src/utils/cloudinary.service';
-import { FunctionService } from 'src/utils/pagination.service';
-
+import { SliderController } from './slider.controller';
+import { SliderService } from './slider.service';
 import { ConfigModule, ConfigService } from '@nestjs/config';
 import { JwtModule } from '@nestjs/jwt';
 import { PassportModule } from '@nestjs/passport';
+import { PrismaModule } from 'src/prisma/prisma.module';
+import { CloudinaryService } from 'src/utils/cloudinary.service';
+import { FunctionService } from 'src/utils/pagination.service';
 import { JwtStrategy } from 'src/strategies/jwt.strategy';
 import { LocalStorageService } from 'src/utils/LocalStorageService';
+
 @Module({
 
     imports: [
@@ -27,9 +27,9 @@ import { LocalStorageService } from 'src/utils/LocalStorageService';
     PassportModule.register({ defaultStrategy: 'jwt' }),
     PrismaModule,
   ],
-  providers: [ProductService,CloudinaryService,FunctionService,JwtStrategy,LocalStorageService],  // <-- JwtStrategy ajouté ici
+  providers: [SliderService,CloudinaryService,FunctionService,JwtStrategy,LocalStorageService],  // <-- JwtStrategy ajouté ici
   exports: [PassportModule, JwtModule],
-  controllers: [ProductController],
 
+  controllers: [SliderController],
 })
-export class ProductModule {}
+export class SliderModule {}

@@ -4,8 +4,6 @@ import { CloudinaryService } from 'src/utils/cloudinary.service';
 import { CreateProductDto, UpdateProductDto } from 'src/dto/request/product.dto';
 import { BaseResponse } from 'src/dto/request/base-response.dto';
 import { PaginationParamsDto } from 'src/dto/request/pagination-params.dto';
-import { startOfMonth, endOfMonth, subMonths, format } from 'date-fns';
-import { Express } from 'express';
 import { CreateDecoupageDto } from 'src/dto/request/decoupage.dto';
 import { Prisma, ProductStatus, TypeCompte } from '@prisma/client';
 import { FunctionService, PaginateOptions } from 'src/utils/pagination.service';
@@ -92,18 +90,6 @@ export class ProductService {
                 targetId: productId,
             },
         });
-    }
-
-    private async getProductImages1(productId: string): Promise<string[]> {
-        const files = await this.prisma.fileManager.findMany({
-            where: {
-                fileType: 'productFiles',
-                targetId: productId,
-            },
-            orderBy: { createdAt: 'asc' }, // ou desc si tu veux la plus récente en premier
-        });
-
-        return files.map(file => file.fileUrl);
     }
 
     private async getProductImages(productId: string): Promise<string[]> {

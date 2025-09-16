@@ -25,6 +25,10 @@ import { StatistiqueModule } from './statistique/statistique.module';
 import { ReversementModule } from './reversement/reversement.module';
 import { TransactionModule } from './transaction/transaction.module';
 import { ContactModule } from './contact/contact.module';
+import { SliderModule } from './slider/slider.module';
+import { PubliciteModule } from './publicite/publicite.module';
+import { ReglageModule } from './reglage/reglage.module';
+import { PartenaireModule } from './partenaire/partenaire.module';
 
 @Module({
   imports: [
@@ -52,6 +56,10 @@ import { ContactModule } from './contact/contact.module';
     ReversementModule,
     TransactionModule,
     ContactModule,
+    SliderModule,
+    PubliciteModule,
+    ReglageModule,
+    PartenaireModule,
 
   ],
 })

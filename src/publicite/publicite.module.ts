@@ -1,18 +1,17 @@
 import { Module } from '@nestjs/common';
-import { ProductController } from './product.controller';
-import { ProductService } from './product.service';
-import { PrismaModule } from 'src/prisma/prisma.module';
-import { CloudinaryService } from 'src/utils/cloudinary.service';
-import { FunctionService } from 'src/utils/pagination.service';
-
+import { PubliciteController } from './publicite.controller';
+import { PubliciteService } from './publicite.service';
 import { ConfigModule, ConfigService } from '@nestjs/config';
 import { JwtModule } from '@nestjs/jwt';
 import { PassportModule } from '@nestjs/passport';
+import { PrismaModule } from 'src/prisma/prisma.module';
+import { CloudinaryService } from 'src/utils/cloudinary.service';
+import { FunctionService } from 'src/utils/pagination.service';
 import { JwtStrategy } from 'src/strategies/jwt.strategy';
 import { LocalStorageService } from 'src/utils/LocalStorageService';
-@Module({
 
-    imports: [
+@Module({
+  imports: [
     ConfigModule, // 👈 pour injection locale (non nécessaire si global)
     JwtModule.registerAsync({
       imports: [ConfigModule],
@@ -27,9 +26,8 @@ import { LocalStorageService } from 'src/utils/LocalStorageService';
     PassportModule.register({ defaultStrategy: 'jwt' }),
     PrismaModule,
   ],
-  providers: [ProductService,CloudinaryService,FunctionService,JwtStrategy,LocalStorageService],  // <-- JwtStrategy ajouté ici
+  providers: [PubliciteService, CloudinaryService, FunctionService, JwtStrategy, LocalStorageService],  // <-- JwtStrategy ajouté ici
   exports: [PassportModule, JwtModule],
-  controllers: [ProductController],
-
+  controllers: [PubliciteController],
 })
-export class ProductModule {}
+export class PubliciteModule { }
