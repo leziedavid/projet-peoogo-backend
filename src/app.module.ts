@@ -29,6 +29,7 @@ import { SliderModule } from './slider/slider.module';
 import { PubliciteModule } from './publicite/publicite.module';
 import { ReglageModule } from './reglage/reglage.module';
 import { PartenaireModule } from './partenaire/partenaire.module';
+import { PaymentMethodesModule } from './payment-methodes/payment-methodes.module';
 
 @Module({
   imports: [
@@ -60,6 +61,7 @@ import { PartenaireModule } from './partenaire/partenaire.module';
     PubliciteModule,
     ReglageModule,
     PartenaireModule,
+    PaymentMethodesModule,
 
   ],
 })
