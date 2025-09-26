@@ -3,21 +3,29 @@ set -e
 
 # Variables
 APP_DIR="/app"
-DB_CONTAINER="ms-postgres"
+DB_HOST="ms-postgres"
+DB_PORT="5432"
 DB_USER="microservices"
 DB_NAME="mseagrie"
+DB_URL="postgresql://$DB_USER@$DB_HOST:$DB_PORT/$DB_NAME"
 BACKUP_DIR="/peoogo/backups"
 
 echo "📦 Sauvegarde conseillée de la base avant de continuer !"
 
-# Créer dossier backup si non existant
+# Créer le dossier backup si non existant
 mkdir -p "$BACKUP_DIR"
 
-# Backup rapide de la base (sécurisé)
-BACKUP_FILE="$BACKUP_DIR/mseagrie_$(date +%F_%H%M%S).sql"
-docker exec -t $DB_CONTAINER pg_dump -U $DB_USER $DB_NAME > "$BACKUP_FILE"
-echo "✅ Backup sauvegardé dans $BACKUP_FILE"
+# Backup rapide si pg_dump est disponible
+if command -v pg_dump >/dev/null 2>&1; then
+  BACKUP_FILE="$BACKUP_DIR/mseagrie_$(date +%F_%H%M%S).sql"
+  PGPASSWORD=$MICROSERVICES_PASSWORD pg_dump -h $DB_HOST -U $DB_USER $DB_NAME > "$BACKUP_FILE" && \
+    echo "✅ Backup sauvegardé dans $BACKUP_FILE" || \
+    echo "⚠️ Backup échoué, continuer quand même."
+else
+  echo "⚠️ pg_dump introuvable, impossible de faire le backup depuis le conteneur."
+fi
 
+# Aller dans le dossier de l'application
 cd $APP_DIR
 
 echo "🔍 Vérification des migrations Prisma..."
