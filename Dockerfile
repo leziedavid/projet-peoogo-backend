@@ -48,9 +48,17 @@ RUN mkdir -p /app/storage
 COPY wait-for-it.sh /app/wait-for-it.sh
 RUN chmod +x /app/wait-for-it.sh
 
+
+# Copier le script entrypoint Prisma
+COPY prisma-entrypoint.sh /app/prisma-entrypoint.sh
+RUN chmod +x /app/prisma-entrypoint.sh
+
 # Exposer le port utilisé par l'app
 EXPOSE 4000
 
+# Lancer le backend via entrypoint
+CMD ["/bin/sh", "-c", "/app/wait-for-it.sh ms-postgres:5432 30 && /app/prisma-entrypoint.sh"]
+
 # Lancer le backend seulement après que PostgreSQL soit prêt
 # ET appliquer les mises à jour du schéma Prisma sans écraser les données
-CMD ["/bin/sh", "-c", "/app/wait-for-it.sh ms-postgres:5432 30 && npx prisma generate && npx prisma migrate deploy && node dist/main.js"]
+# CMD ["/bin/sh", "-c", "/app/wait-for-it.sh ms-postgres:5432 30 && npx prisma generate && npx prisma migrate deploy && node dist/main.js"]
