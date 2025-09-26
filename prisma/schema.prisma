@@ -225,6 +225,9 @@ model Decoupage {
   localite         Localite       @relation(fields: [localiteId], references: [id], onDelete: Cascade)
   produits         Product[]
   enrollements     Enrollements[] @relation("DecoupageEnrollements")
+  
+  @@unique([districtId, regionId, departmentId, sousPrefectureId, localiteId])
+
 }
 
 model User {

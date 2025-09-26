@@ -27,9 +27,8 @@ import { LocalStorageService } from 'src/utils/LocalStorageService';
     PassportModule.register({ defaultStrategy: 'jwt' }),
     PrismaModule,
   ],
-  
-  controllers: [AuthController],
   providers: [AuthService, CloudinaryService, JwtStrategy,FunctionService,LocalStorageService],  // <-- JwtStrategy ajouté ici
+  controllers: [AuthController],
   exports: [PassportModule, JwtModule],                       // <-- exporter pour pouvoir utiliser JwtAuthGuard ailleurs
 })
 export class AuthModule { }

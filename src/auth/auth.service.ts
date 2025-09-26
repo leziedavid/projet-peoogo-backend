@@ -46,49 +46,7 @@ export class AuthService {
         const randomNumber = Math.floor(1000 + Math.random() * 9000); // Nombre aléatoire entre 1000 et 9999
         return `PEO${randomNumber}#`;
     }
-    /** Enregistrement d’un nouvel utilisateur CloudinaryService */
-    async register2(dto: RegisterDto): Promise<BaseResponse<{ userId: string }>> {
 
-        const accountNumberGenearate = this.generateAccountNumber();
-        const exists = await this.prisma.user.findUnique({ where: { email: dto.email } });
-        if (exists) throw new UnauthorizedException('Email déjà utilisé');
-
-        const hashed = await bcrypt.hash(dto.password, 10);
-        const passwordGenerat: string | null = dto.password ? dto.password : null;
-
-        const user = await this.prisma.user.create({
-            data: {
-                email: dto.email,
-                name: dto.name,
-                // phoneCountryCode: dto.phoneCountryCode,
-                phoneNumber: dto.phoneNumber,
-                password: hashed,
-                passwordGenerate: passwordGenerat,
-                role: dto.role,
-                status: UserStatus.ACTIVE,
-                typeCompte: dto.typeCompte,
-                wallet: { create: { balance: 0, accountNumber: accountNumberGenearate } },
-            },
-        });
-
-        if (dto.file) {
-            try {
-                const upload = await this.cloudinary.uploadFile(dto.file.buffer, 'users');
-
-                await this.prisma.fileManager.create({
-                    data: {
-                        ...upload,
-                        fileType: 'userFiles',
-                        targetId: user.id,
-                    },
-                });
-            } catch (err) {
-                throw new InternalServerErrorException('Erreur lors de l’upload de l’image');
-            }
-        }
-
-        return new BaseResponse(201, 'Utilisateur créé', { userId: user.id });
-    }
 
     /** Enregistrement d’un nouvel utilisateur */
     async register(dto: RegisterDto): Promise<BaseResponse<{ userId: string }>> {
@@ -140,7 +98,6 @@ export class AuthService {
 
         return new BaseResponse(201, 'Utilisateur créé', { userId: user.id });
     }
-
 
     private async uploadAndSaveSingleFile(enrollementId: string, fileBuffer: Buffer | string, fileType: string, folder: string,): Promise<void> {
         // Chercher fichier existant et supprimer
@@ -245,9 +202,7 @@ export class AuthService {
         });
     }
 
-    async loginByPhoneCode(
-        dto: LoginByPhoneCode
-    ): Promise<BaseResponse<{ access_token: string; refresh_token: string; user: any }>> {
+    async loginByPhoneCode( dto: LoginByPhoneCode): Promise<BaseResponse<{ access_token: string; refresh_token: string; user: any }>> {
         const isCode = /[a-zA-Z#]/.test(dto.login);
 
         const user = isCode
@@ -609,124 +564,6 @@ export class AuthService {
 
         return new BaseResponse(200, 'Profil mis à jour avec succès', updatedUser);
     }
-
-    /** 🔍 Liste paginée de tous les utilisateurs avec relations */
-    // async getAllUsers(params: PaginationParamsDto): Promise<BaseResponse<any>> {
-    //     const { page, limit } = params;
-    //     const data = await this.functionService.paginate({
-    //         model: 'User',
-    //         page: Number(page),
-    //         limit: Number(limit),
-    //         conditions: {},
-    //         selectAndInclude: {
-    //             select: null,
-    //             include: {
-    //                 wallet: true,
-    //                 ecommerceOrders: true,
-    //                 agentEnroleur: {
-    //                     include: {
-    //                         decoupage: {
-    //                             include: {
-    //                                 district: true,
-    //                                 region: true,
-    //                                 department: true,
-    //                                 sousPrefecture: true,
-    //                                 localite: true,
-    //                             },
-    //                         },
-    //                         activitprincipale: true,
-    //                         spculationprincipale: true,
-    //                         autresActivites: {
-    //                             include: { activite: true }
-    //                         },
-    //                         autresSpeculations: {
-    //                             include: { speculation: true }
-    //                         },
-    //                     },
-    //                 },
-    //                 agentSuperviseur: {
-    //                     include: {
-    //                         decoupage: {
-    //                             include: {
-    //                                 district: true,
-    //                                 region: true,
-    //                                 department: true,
-    //                                 sousPrefecture: true,
-    //                                 localite: true,
-    //                             },
-    //                         },
-    //                     },
-    //                 },
-    //                 agentControle: {
-    //                     include: {
-    //                         decoupage: {
-    //                             include: {
-    //                                 district: true,
-    //                                 region: true,
-    //                                 department: true,
-    //                                 sousPrefecture: true,
-    //                                 localite: true,
-    //                             },
-    //                         },
-    //                     },
-    //                 },
-    //             },
-    //         },
-    //         orderBy: { createdAt: 'desc' },
-    //     });
-
-    //     // Ajout des fichiers (image, carte, permis)
-    //     const usersWithFiles = await Promise.all(
-    //         data.data.map(async (user) => {
-
-    //             if (user.enrollementsId) {
-    //                 // Utilisateur enrolé → récupérer fichiers depuis Enrollements
-    //                 const [photo, document1, document2] = await Promise.all([
-    //                     this.prisma.fileManager.findFirst({
-    //                         where: { targetId: user.enrollementsId, fileType: 'enrollements_photo' },
-    //                         orderBy: { createdAt: 'desc' },
-    //                     }),
-    //                     this.prisma.fileManager.findFirst({
-    //                         where: { targetId: user.enrollementsId, fileType: 'enrollements_photo_document_1' },
-    //                         orderBy: { createdAt: 'desc' },
-    //                     }),
-    //                     this.prisma.fileManager.findFirst({
-    //                         where: { targetId: user.enrollementsId, fileType: 'enrollements_photo_document_2' },
-    //                         orderBy: { createdAt: 'desc' },
-    //                     }),
-    //                 ]);
-
-    //                 console.log(document1.fileUrl);
-
-    //                 return {
-    //                     ...user,
-    //                     userFiles: {
-    //                         photo: photo ? getPublicFileUrl(photo.fileUrl) : null,
-    //                         document1: document1 ? getPublicFileUrl(document1.fileUrl) : null,
-    //                         document2: document2 ? getPublicFileUrl(document2.fileUrl) : null,
-    //                     },
-    //                 };
-    //             } else {
-    //                 // Utilisateur normal → juste sa photo
-    //                 const photo = await this.prisma.fileManager.findFirst({
-    //                     where: { targetId: user.id, fileType: 'userFiles' },
-    //                     orderBy: { createdAt: 'desc' },
-    //                 });
-
-    //                 return {
-    //                     ...user,
-    //                     photo: photo ? getPublicFileUrl(photo.fileUrl) : null,
-    //                 };
-    //             }
-    //         })
-    //     );
-
-    //     return new BaseResponse(200, 'Liste des utilisateurs', {
-    //         ...data,
-    //         data: usersWithFiles,
-    //     });
-    // }
-
 
     /** 🔍 Liste paginée de tous les utilisateurs avec relations */
     async getAllUsers(params: PaginationParamsDto): Promise<BaseResponse<any>> {

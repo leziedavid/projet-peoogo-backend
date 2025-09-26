@@ -3,7 +3,7 @@ import { PrismaService } from 'src/prisma/prisma.service';
 import { CloudinaryService } from 'src/utils/cloudinary.service';
 import { BaseResponse } from 'src/dto/request/base-response.dto';
 import { CreateEnrollementsDto, UpdateEnrollementsDto, } from 'src/dto/request/enrollements.dto';
-import { CreateDecoupageDto } from 'src/dto/request/decoupage.dto';
+import { CreateDecoupageDto, DecoupageDto } from 'src/dto/request/decoupage.dto';
 import { Enrollements, Prisma, PrismaClient, StatusDossier, TypeCompte } from '@prisma/client';
 import { EnrollementAdminFilterDto } from 'src/dto/request/enrollementAdminFilter.dto';
 import { resolveDecoupageId } from 'src/utils/decoupage.utils';
@@ -21,9 +21,7 @@ export class EnrollementsService {
         private readonly prisma: PrismaService,
         private readonly cloudinary: CloudinaryService,
         private readonly functionService: FunctionService,
-        private readonly localStorage: LocalStorageService, // injecter ton service
-
-    ) { }
+        private readonly localStorage: LocalStorageService,) { }
 
     /**
      * Upload un fichier buffer vers Cloudinary puis sauvegarde dans FileManager
@@ -83,6 +81,80 @@ export class EnrollementsService {
 
         return decoupage;
     }
+
+    private async findDecoupage(decoupage?: any): Promise<string | null> {
+        if (!decoupage) return null;
+
+        console.log('decoupage reçu:', decoupage);
+        console.log('type de decoupage:', typeof decoupage);
+
+        // Si c'est un string JSON, on le parse
+        let parsedDecoupage;
+        if (typeof decoupage === 'string') {
+            try {
+                parsedDecoupage = JSON.parse(decoupage);
+            } catch (error) {
+                console.log('Erreur parsing JSON:', error);
+                return null;
+            }
+        } else {
+            parsedDecoupage = decoupage;
+        }
+
+        console.log('parsedDecoupage:', parsedDecoupage);
+
+        // Extraction simple des IDs
+        const districtId = parsedDecoupage.districtId;
+        const regionId = parsedDecoupage.regionId;
+        const departmentId = parsedDecoupage.departmentId;
+        const sousPrefectureId = parsedDecoupage.sousPrefectureId;
+        const localiteId = parsedDecoupage.localiteId;
+
+        console.log('IDs extraits:', {
+            districtId,
+            regionId,
+            departmentId,
+            sousPrefectureId,
+            localiteId
+        });
+
+        // Vérification que tous les IDs sont présents
+        if (!districtId || !regionId || !departmentId || !sousPrefectureId || !localiteId) {
+            console.log('Un ou plusieurs IDs manquent');
+            return null;
+        }
+
+        // Recherche dans la base
+        const result = await this.prisma.decoupage.findUnique({
+            where: {
+                districtId_regionId_departmentId_sousPrefectureId_localiteId: {
+                    districtId,
+                    regionId,
+                    departmentId,
+                    sousPrefectureId,
+                    localiteId
+                }
+            },
+            select: {
+                id: true,
+            },
+        });
+
+        console.log('Résultat trouvé:', result);
+        return result?.id || null;
+    }
+
+    //     AIDE MOI AVEC : 🚀 API running on port 4000
+    // Received user: 9e3a1490-ff3f-44da-bb63-1536db9971c5
+    // decoupage: {"regionId":"d3e75904-9aa8-461e-8f3e-162c86ceaa29","departmentId":"95850d24-1ab0-451d-abea-08a87b91bf06","sousPrefectureId":"769057d2-2123-44dc-8869-c6ec2c93efd1","localiteId":"524e80fd-8ce9-4b0f-b56d-20b7fa9a6437","districtId":"3a996600-0027-485f-ab08-3643a5249607"}
+    // cleanDto: {
+    //   districtId: null,
+    //   regionId: null,
+    //   departmentId: null,
+    //   sousPrefectureId: null,
+    //   localiteId: null
+    // }
+
 
     private async getactiviteNameByid(id: string) {
         const activite = await this.prisma.activite.findUnique({
@@ -232,7 +304,12 @@ export class EnrollementsService {
                 throw new NotFoundException('Découpage obligatoire pour la création');
             }
 
-            const decoupages = await this.findDecoupageOrFail(dto.decoupage);
+            const decoupages = await this.findDecoupage(dto.decoupage);
+
+            if (!decoupages) {
+                throw new NotFoundException('Découpage non trouvé avec ces critères');
+            }
+            // const decoupages = await this.findDecoupageOrFail(dto.decoupage);
             const code = this.generateCodes();
 
             // Extraire decoupage du dto
@@ -245,7 +322,7 @@ export class EnrollementsService {
             // Construction data sans decoupage
             const dataToSave: any = {
                 ...dataWithoutFiles,
-                decoupageId: decoupages.id,
+                decoupageId: decoupages,
                 code,
                 agent_id: userId,
                 TypeCompte: dto.typeCompte as TypeCompte, // ✅ mapping correct de l'enum
@@ -322,7 +399,7 @@ export class EnrollementsService {
         } catch (error) {
             throw new InternalServerErrorException(`Erreur création enrollement: ${error.message}`);
         }
-        
+
     }
 
     async update(id: string, dto: UpdateEnrollementsDto): Promise<BaseResponse<any>> {
@@ -333,12 +410,17 @@ export class EnrollementsService {
         try {
 
             const { decoupage, photo, photo_document_1, photo_document_2, ..._rest } = dto;
+            const decoupages = await this.findDecoupage(decoupage);
+
+            if (!decoupages) {
+                throw new NotFoundException('Découpage non trouvé avec ces critères');
+            }
 
             // Construction manuelle et sécurisée des données à mettre à jour
             const dataToUpdate: Prisma.EnrollementsUncheckedUpdateInput = {
                 agent_superviseur_id: dto.agent_superviseur_id || null,
                 status_dossier: dto.status_dossier,
-                time_enrolment: dto.time_enrolment !== undefined  ? dto.time_enrolment : 2,
+                time_enrolment: dto.time_enrolment !== undefined ? dto.time_enrolment : 2,
                 nom: dto.nom,
                 prenom: dto.prenom,
                 datedenaissance: dto.datedenaissance,
@@ -367,8 +449,8 @@ export class EnrollementsService {
             }
 
             // Mise à jour éventuelle du découpage
-            if (decoupage?.id) {
-                dataToUpdate.decoupageId = decoupage.id;
+            if (decoupages) {
+                dataToUpdate.decoupageId = decoupages;
             }
 
             const updated = await this.prisma.enrollements.update({
@@ -487,7 +569,7 @@ export class EnrollementsService {
     }
 
     async assignLotIfNeeded(userId: string, params: PaginationParamsDto): Promise<BaseResponse<any>> {
-        
+
         const { page, limit } = params;
         // 🔍 Récupérer l'utilisateur
         const user = await this.prisma.user.findUnique({ where: { id: userId } });
@@ -638,7 +720,7 @@ export class EnrollementsService {
             conditions: {
                 is_deleted: false,
                 agent_id: agentId,       // Filtre ici par agent_id   VAL
-                status_dossier: { in: [StatusDossier.REJ, StatusDossier.DOUBLON,StatusDossier.IMAGE_INCOR, StatusDossier.DOUBLON_NUMBER] }
+                status_dossier: { in: [StatusDossier.REJ, StatusDossier.DOUBLON, StatusDossier.IMAGE_INCOR, StatusDossier.DOUBLON_NUMBER] }
             },
             selectAndInclude: {
                 select: null,
