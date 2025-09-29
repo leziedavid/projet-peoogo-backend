@@ -40,18 +40,22 @@ if [ -n "$INIT_MIG" ] && [ -n "$INIT_IN_DB" ]; then
   # Calcul du hash local
   INIT_LOCAL_HASH=$(sha256sum "prisma/migrations/$INIT_MIG/migration.sql" | awk '{print $1}')
 
-  # Récupération du hash en base
-  INIT_DB_HASH=$(PGPASSWORD="$MICROSERVICES_PASSWORD" psql "$DB_URL" -t -c \
-    "SELECT checksum FROM _prisma_migrations WHERE migration_name LIKE '%_init%' ORDER BY finished_at DESC LIMIT 1;" | xargs)
+  if command -v psql >/dev/null 2>&1; then
+    # Récupération du hash en base
+    INIT_DB_HASH=$(PGPASSWORD="$MICROSERVICES_PASSWORD" psql "$DB_URL" -t -c \
+      "SELECT checksum FROM _prisma_migrations WHERE migration_name LIKE '%_init%' ORDER BY finished_at DESC LIMIT 1;" | xargs)
 
-  echo "🔍 Hash local : $INIT_LOCAL_HASH"
-  echo "🔍 Hash base  : $INIT_DB_HASH"
+    echo "🔍 Hash local : $INIT_LOCAL_HASH"
+    echo "🔍 Hash base  : $INIT_DB_HASH"
 
-  if [ "$INIT_LOCAL_HASH" = "$INIT_DB_HASH" ]; then
-    echo "✅ Migration init identique en base et en local, on la marque comme appliquée"
-    npx prisma migrate resolve --applied "$INIT_MIG" --schema="$SCHEMA_PATH" || true
+    if [ "$INIT_LOCAL_HASH" = "$INIT_DB_HASH" ]; then
+      echo "✅ Migration init identique → marquée comme appliquée"
+      npx prisma migrate resolve --applied "$INIT_MIG" --schema="$SCHEMA_PATH" || true
+    else
+      echo "⚠️ Attention : hash différent → Prisma appliquera la migration locale"
+    fi
   else
-    echo "⚠️ Attention : hash différent → on laisse Prisma appliquer la migration locale"
+    echo "⚠️  psql non disponible → skip comparaison des hash, Prisma gèrera automatiquement"
   fi
 fi
 
