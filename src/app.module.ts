@@ -30,6 +30,7 @@ import { PubliciteModule } from './publicite/publicite.module';
 import { ReglageModule } from './reglage/reglage.module';
 import { PartenaireModule } from './partenaire/partenaire.module';
 import { PaymentMethodesModule } from './payment-methodes/payment-methodes.module';
+import { CategorieModule } from './categorie/categorie.module';
 
 @Module({
   imports: [
@@ -62,6 +63,7 @@ import { PaymentMethodesModule } from './payment-methodes/payment-methodes.modul
     ReglageModule,
     PartenaireModule,
     PaymentMethodesModule,
+    CategorieModule,
 
   ],
 })

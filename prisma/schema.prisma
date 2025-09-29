@@ -294,6 +294,15 @@ model Transaction {
   reversement       Reversement?    @relation(name: "ReversementToTransaction")
 }
 
+model Categorie {
+  id        String    @id @default(uuid())
+  nom       String    @unique
+  status    Status    @default(ACTIVE)
+  produits  Product[] @relation("ProductCategories")
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+}
+
 model Product {
   id                 String               @id @default(uuid())
   nom                String
@@ -320,6 +329,8 @@ model Product {
   decoupageId        String
   decoupage          Decoupage            @relation(fields: [decoupageId], references: [id], onDelete: Cascade)
   EcommerceOrderItem EcommerceOrderItem[]
+  // 🆕 Relation optionnelle avec les catégories
+  categories Categorie[] @relation("ProductCategories")
 }
 
 model Enrollements {

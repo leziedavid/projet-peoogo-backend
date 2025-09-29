@@ -92,18 +92,39 @@ export class ProductService {
         });
     }
 
-    private async getProductImages(productId: string): Promise<string[]> {
-    const files = await this.prisma.fileManager.findMany({
-        where: {
-            fileType: 'productFiles',
-            targetId: productId,
-        },
-        orderBy: { createdAt: 'asc' },
-    });
+    private parseStringOrArray<T = string>(input: unknown): T[] {
+        if (Array.isArray(input)) {
+            return input as T[];
+        }
+        if (typeof input === 'string') {
+            try {
+                const parsed = JSON.parse(input);
+                if (Array.isArray(parsed)) {
+                    return parsed as T[];
+                } else {
+                    console.error('Le JSON parsé n’est pas un tableau:', parsed);
+                    return [];
+                }
+            } catch (e) {
+                console.error('Erreur parsing JSON:', e instanceof Error ? e.message : e);
+                return [];
+            }
+        }
+        return [];
+    }
 
-    // Transforme les fileUrl relatifs en URL publiques complètes
-    return files.map(file => getPublicFileUrl(file.fileUrl));
-}
+    private async getProductImages(productId: string): Promise<string[]> {
+        const files = await this.prisma.fileManager.findMany({
+            where: {
+                fileType: 'productFiles',
+                targetId: productId,
+            },
+            orderBy: { createdAt: 'asc' },
+        });
+
+        // Transforme les fileUrl relatifs en URL publiques complètes
+        return files.map(file => getPublicFileUrl(file.fileUrl));
+    }
 
     private async getUserByCodeGenerate(rawCode: string): Promise<any[]> {
 
@@ -111,7 +132,7 @@ export class ProductService {
         const user = await this.prisma.user.findFirst({
             where: {
                 codeGenerate: {
-                    equals: cleanCode+"#",
+                    equals: cleanCode + "#",
                     mode: 'insensitive',
                 },
             },
@@ -254,7 +275,7 @@ export class ProductService {
 
     async createProduct(dto: CreateProductDto, userId: string): Promise<BaseResponse<{ productId: string }>> {
         const decoupages = await this.findDecoupageOrFail(dto.decoupage);
-        const { image, autreImage, prixUnitaire, prixEnGros, quantite, decoupage, ...productData } = dto as any;
+        const { image, autreImage, prixUnitaire, prixEnGros, quantite, decoupage, categories, ...productData } = dto as any;
 
         try {
             const code = await this.generateUniqueProductCode();
@@ -286,6 +307,19 @@ export class ProductService {
             if ('decoupage' in dataToSave) delete dataToSave.decoupage;
 
             const product = await this.prisma.product.create({ data: dataToSave });
+            // Étape 2 : Gestion des catégories
+            const categoriesSelecte = this.parseStringOrArray<string>(dto.categories);
+            if (categoriesSelecte.length > 0) {
+                await this.prisma.product.update({
+                    where: { id: product.id },
+                    data: {
+                        categories: {
+                            connect: categoriesSelecte.map((categorieId) => ({ id: categorieId })),
+                        },
+                    },
+                });
+            }
+
 
             // Étape 2 : Upload image principale (si présente)
             if (image) {
@@ -300,7 +334,7 @@ export class ProductService {
             // Étape 3 : Upload autres images
             if (autreImage && autreImage.length > 0) {
                 for (const file of autreImage) {
-                    
+
                     await this.uploadAndSaveSingleFile(product.id, file.buffer, 'productFiles', 'products');
                 }
             }
@@ -314,6 +348,7 @@ export class ProductService {
         }
     }
 
+
     async updateProduct(id: string, dto: UpdateProductDto, userId: string): Promise<BaseResponse<null>> {
         const existing = await this.prisma.product.findUnique({ where: { id } });
 
@@ -321,7 +356,7 @@ export class ProductService {
             throw new NotFoundException('Produit introuvable');
         }
 
-        const { image, autreImage, prixUnitaire, prixEnGros, quantite, decoupage, ...productData } = dto as any;
+        const { image, autreImage, prixUnitaire, prixEnGros, quantite, decoupage, categories, ...productData } = dto as any;
 
         let decoupageId = existing.decoupageId;
         if (decoupage) {
@@ -357,6 +392,21 @@ export class ProductService {
             data: dataToUpdate,
         });
 
+        // Mise à jour des catégories
+        const categoriesSelecte = this.parseStringOrArray<string>(categories);
+
+        if (categoriesSelecte.length > 0) {
+            await this.prisma.product.update({
+                where: { id },
+                data: {
+                    categories: {
+                        set: [], // on vide les anciennes catégories
+                        connect: categoriesSelecte.map((categorieId) => ({ id: categorieId })),
+                    },
+                },
+            });
+        }
+
         const fileType = 'productFiles';
 
         // Si nouvelle image principale envoyée, on supprime l’ancienne puis on upload la nouvelle
@@ -369,7 +419,7 @@ export class ProductService {
 
             if (existingFile?.fileCode) {
                 try {
-                    
+
                     // await this.cloudinary.deleteFileByPublicId(existingFile.fileCode);
                     await this.localStorage.deleteFile(existingFile.fileCode);
 
@@ -408,7 +458,7 @@ export class ProductService {
     }
 
     // ✅ Mettre à jour la période de disponibilité
-    async updateAvailability(id: string,disponibleDe: string, disponibleJusqua: string): Promise<BaseResponse<{ productId: string }>> {
+    async updateAvailability(id: string, disponibleDe: string, disponibleJusqua: string): Promise<BaseResponse<{ productId: string }>> {
         const product = await this.prisma.product.findUnique({ where: { id } });
         if (!product) throw new NotFoundException('Produit non trouvé');
 
@@ -428,7 +478,7 @@ export class ProductService {
     }
 
     // ✅ Mettre à jour la quantité
-    async updateQuantity( id: string, quantite: number): Promise<BaseResponse<{ productId: string }>> {
+    async updateQuantity(id: string, quantite: number): Promise<BaseResponse<{ productId: string }>> {
         const product = await this.prisma.product.findUnique({ where: { id } });
         if (!product) throw new NotFoundException('Produit non trouvé');
 
@@ -459,6 +509,7 @@ export class ProductService {
                     },
                 },
                 addedBy: true,
+                categories: true,
             },
         });
 
@@ -539,6 +590,7 @@ export class ProductService {
                         },
                     },
                     addedBy: true,
+                    categories: true,
                 },
             },
             orderBy: { disponibleDe: 'desc' },
@@ -593,6 +645,7 @@ export class ProductService {
                         },
                     },
                     addedBy: true,
+                    categories: true,
                 },
             },
             orderBy: { disponibleDe: 'desc' },
@@ -619,14 +672,31 @@ export class ProductService {
         return new BaseResponse(200, 'Liste paginée des produits disponibles', data);
     }
 
-    async getAllProductsWithStatus(params: PaginationParamsDto): Promise<BaseResponse<any>> {
+    async getAllProductsWithStatus(params: PaginationParamsDto, categorieFilter?: string,): Promise<BaseResponse<any>> {
         const { page = 1, limit = 10 } = params;
         const now = new Date();
+        // Filtres initiaux
+        const filters: Prisma.ProductWhereInput = {
+            status: ProductStatus.ACTIVE,
+        };
+
+        // Filtre par catégorie si fourni
+        if (categorieFilter && categorieFilter.trim() !== '') {
+            filters.categories = {
+                some: {
+                    id: {
+                        contains: categorieFilter.trim(),
+                        mode: 'insensitive',
+                    },
+                },
+            };
+        }
 
         const paginateOptions: PaginateOptions = {
             model: 'Product',
             page: Number(page),
             limit: Number(limit),
+            conditions: filters, // ⚡️ ajoute les filtres ici
             selectAndInclude: {
                 select: null,
                 include: {
@@ -640,6 +710,7 @@ export class ProductService {
                         },
                     },
                     addedBy: true,
+                    categories: true, // inclure les catégories pour info
                 },
             },
             orderBy: { disponibleDe: 'desc' },
@@ -650,24 +721,32 @@ export class ProductService {
         // Ajoute le statut et les images à chaque produit
         data.data = await Promise.all(
             data.data.map(async (product) => {
-                const isDisponible = new Date(product.disponibleDe) <= now && new Date(product.disponibleJusqua) >= now;
+                const isDisponible =
+                    new Date(product.disponibleDe) <= now &&
+                    new Date(product.disponibleJusqua) >= now;
+
                 const images = await this.getProductImages(product.id);
                 const userInfo = await this.getUserByCodeGenerateOne(product.codeUsers);
                 const mainImageUrl = product.imageUrl ? getPublicFileUrl(product.imageUrl) : null;
+
                 return {
                     ...product,
                     statut: isDisponible ? 'disponible' : 'indisponible',
-                    imageUrl: mainImageUrl, // image principale transformée
+                    imageUrl: mainImageUrl,
                     images,
-                    userInfo: userInfo || null, // 👈 évite l'erreur si userInfo = null
+                    userInfo: userInfo || null,
                 };
             }),
         );
 
-        return new BaseResponse(200, 'Tous les produits avec leur statut et images', data);
+        return new BaseResponse(
+            200,
+            'Tous les produits avec leur statut, images et catégories',
+            data,
+        );
     }
 
-    async filterProductsWithStatus( dto: MarketProduitFilterDto, params: PaginationParamsDto,): Promise<BaseResponse<any>> {
+    async filterProductsWithStatus(dto: MarketProduitFilterDto, params: PaginationParamsDto,): Promise<BaseResponse<any>> {
         const { page = 1, limit = 10 } = params;
         const now = new Date();
 
@@ -675,11 +754,23 @@ export class ProductService {
         const filters: Prisma.ProductWhereInput = {
             status: ProductStatus.ACTIVE,
         };
-
+        
         // 1. CATEGORIE
         if (dto.categorie && dto.categorie.trim() !== '') {
+            filters.categories = {
+                some: {
+                    id: {
+                        contains: dto.categorie.trim(),
+                        mode: 'insensitive',
+                    },
+                },
+            };
+        }
+
+        //2. SPECULATION
+        if (dto.speculation && dto.speculation.trim() !== '') {
             filters.nom = {
-                contains: dto.categorie.trim(),
+                contains: dto.speculation.trim(),
                 mode: 'insensitive',
             };
         }
@@ -768,6 +859,7 @@ export class ProductService {
                         },
                     },
                     addedBy: true,
+                    categories: true,
                 },
             },
             orderBy: { disponibleDe: 'desc' },
@@ -814,6 +906,7 @@ export class ProductService {
                         },
                     },
                     addedBy: true,
+                    categories: true,
                 },
             });
 
@@ -857,7 +950,7 @@ export class ProductService {
             page: Number(page),
             limit: Number(limit),
             conditions: {
-                codeUsers: code+"#", // filtre correct basé sur ton modèle
+                codeUsers: code + "#", // filtre correct basé sur ton modèle
             },
             selectAndInclude: {
                 select: null,
@@ -873,6 +966,7 @@ export class ProductService {
                         },
                     },
                     EcommerceOrderItem: true, // bonne casse et nom exact
+                    categories: true,
                 },
             },
             orderBy: { createdAt: 'desc' }
@@ -880,7 +974,7 @@ export class ProductService {
 
         const data = await this.functionService.paginate(paginateOptions);
         // Ajoute le statut et les images à chaque produit
-        
+
         data.data = await Promise.all(
             data.data.map(async (product) => {
                 const isDisponible = new Date(product.disponibleDe) <= now && new Date(product.disponibleJusqua) >= now;
@@ -901,9 +995,29 @@ export class ProductService {
         return new BaseResponse(200, 'Produits utilisateur valides avec découpage', data);
     }
 
-    async getAllProductsAdmin(params: PaginationParamsDto): Promise<BaseResponse<any>> {
+    async getAllProductsAdmin( params: PaginationParamsDto, categorie?: string,  search?: string,): Promise<BaseResponse<any>> {
         const { page, limit } = params;
         const now = new Date();
+        const filters: Prisma.ProductWhereInput = {};
+        // Filtre catégorie si fourni
+        if (categorie && categorie.trim() !== '') {
+            filters.categories = {
+                some: {
+                    id: {
+                        contains: categorie.trim(),
+                        mode: 'insensitive',
+                    },
+                },
+            };
+        }
+
+        // Filtre recherche sur le nom du produit si fourni
+        if (search && search.trim() !== '') {
+            filters.nom = {
+                contains: search.trim(),
+                mode: 'insensitive',
+            };
+        }
 
         const paginateOptions: PaginateOptions = {
             model: 'Product',
@@ -922,9 +1036,11 @@ export class ProductService {
                         },
                     },
                     EcommerceOrderItem: true,
+                    categories: true,
                 },
                 select: null,
             },
+            conditions: filters,
             orderBy: { createdAt: 'desc' },
         };
 
@@ -932,11 +1048,10 @@ export class ProductService {
 
         data.data = await Promise.all(
             data.data.map(async (product) => {
-                // On ignore les produits sans codeUsers valide
                 if (!product.codeUsers || Number(product.codeUsers) <= 0) return null;
 
                 const userInfo = await this.getValidUserByCode(product.codeUsers);
-                if (!userInfo) return null; // Ignore si utilisateur pas valide
+                if (!userInfo) return null;
 
                 const isDisponible =
                     new Date(product.disponibleDe) <= now &&
@@ -948,18 +1063,18 @@ export class ProductService {
                 return {
                     ...product,
                     statut: isDisponible ? 'disponible' : 'indisponible',
-                    imageUrl: mainImageUrl, // image principale transformée
+                    imageUrl: mainImageUrl,
                     images,
                     userInfo,
                 };
             }),
         );
 
-        // Supprime les produits null
         data.data = data.data.filter((p) => p !== null);
 
-        return new BaseResponse(200, 'Tous les produits admin avec découpage', data);
+        return new BaseResponse(200, 'Tous les produits admin avec découpage et filtres', data);
     }
+
 
     async getAllProductsAdmin1(params: PaginationParamsDto): Promise<BaseResponse<any>> {
         const { page, limit } = params;
@@ -1015,7 +1130,7 @@ export class ProductService {
         // Récupère les produits de ce code producteur (codeUsers)
         const userProducts = await this.prisma.product.findMany({
             where: {
-                codeUsers: code+"#",
+                codeUsers: code + "#",
             },
             select: {
                 id: true,
@@ -1029,13 +1144,13 @@ export class ProductService {
             // Nombre total de produits liés au code
             this.prisma.product.count({
                 where: {
-                    codeUsers: code+"#",
+                    codeUsers: code + "#",
                 },
             }),
             // Somme des quantités (champ quantite)
             this.prisma.product.aggregate({
                 where: {
-                    codeUsers: code+"#",
+                    codeUsers: code + "#",
                 },
                 _sum: {
                     quantite: true,

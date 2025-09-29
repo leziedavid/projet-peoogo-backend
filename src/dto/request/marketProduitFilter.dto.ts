@@ -41,10 +41,17 @@ export class MarketProduitFilterDto {
     @Type(() => DecoupageFilterDto)
     decoupage?: DecoupageFilterDto;
 
-    @ApiPropertyOptional({ example: 'céréales' })
+    @ApiPropertyOptional({ example: 'fruits' })
     @IsOptional()
     @IsString()
     categorie?: string;
+
+    //speculation
+    @ApiPropertyOptional({ example: 'céréales' })
+    @IsOptional()
+    @IsString()
+    speculation?: string;
+    
 
     @ApiPropertyOptional({ example: 4.5 })
     @IsOptional()

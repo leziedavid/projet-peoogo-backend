@@ -31,6 +31,12 @@ export class ProductDto {
     @IsUUID()
     id: string;
 
+
+    @ApiPropertyOptional({ type: [String], description: 'Catégories (optionnel)' })
+    @IsOptional()
+    @IsString({ each: true })
+    categories?: string[];
+
     @ApiProperty({ example: 'Maïs jaune' })
     @IsString()
     nom: string;
@@ -89,9 +95,9 @@ export class ProductDto {
     image?: Express.Multer.File;
 
     @ApiPropertyOptional({
-    type: 'array',
-    items: { type: 'string', format: 'binary' },
-    description: 'Autre image (upload)',
+        type: 'array',
+        items: { type: 'string', format: 'binary' },
+        description: 'Autre image (upload)',
     })
     @IsOptional()
     @IsArray()

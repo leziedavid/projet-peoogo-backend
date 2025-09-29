@@ -20,14 +20,14 @@ export class ProductController {
     @Post()
     @ApiOperation({ summary: 'Créer un nouveau produit' })
     @ApiConsumes('multipart/form-data')
-    @UseInterceptors( FileFieldsInterceptor([ { name: 'image', maxCount: 1 }, { name: 'autreImage', maxCount: 10 }, ]))
+    @UseInterceptors(FileFieldsInterceptor([{ name: 'image', maxCount: 1 }, { name: 'autreImage', maxCount: 10 },]))
     @ApiResponse({ status: 201, description: 'Produit créé avec succès.' })
     @ApiBody({ description: 'Données pour créer un produit avec fichiers', type: CreateProductDto, })
-    async createProduct( @UploadedFiles() files: { image?: Express.Multer.File[]; autreImage?: Express.Multer.File[]; }, @Body() dto: CreateProductDto, @Req() req: Request,) {
-            dto.image = files.image?.[0] ?? null;
-            dto.autreImage = files.autreImage ?? null;
-            const user = req.user as any;
-            return this.productService.createProduct(dto, user.id);
+    async createProduct(@UploadedFiles() files: { image?: Express.Multer.File[]; autreImage?: Express.Multer.File[]; }, @Body() dto: CreateProductDto, @Req() req: Request,) {
+        dto.image = files.image?.[0] ?? null;
+        dto.autreImage = files.autreImage ?? null;
+        const user = req.user as any;
+        return this.productService.createProduct(dto, user.id);
     }
 
     @UseGuards(JwtAuthGuard)
@@ -59,7 +59,7 @@ export class ProductController {
     @Patch(':id')
     @ApiOperation({ summary: 'Mettre à jour un produit' })
     @ApiConsumes('multipart/form-data')
-    @UseInterceptors( FileFieldsInterceptor([ { name: 'image', maxCount: 1 }, { name: 'autreImage', maxCount: 10 }, ]))
+    @UseInterceptors(FileFieldsInterceptor([{ name: 'image', maxCount: 1 }, { name: 'autreImage', maxCount: 10 },]))
     @ApiResponse({ status: 200, description: 'Produit mis à jour.' })
     @ApiResponse({ status: 404, description: 'Produit non trouvé.' })
     async updateProducts(
@@ -71,20 +71,20 @@ export class ProductController {
         dto.image = files.image?.[0] ?? null;
         dto.autreImage = files.autreImage ?? null;
         const user = req.user as any;
-        return this.productService.updateProduct(id, dto,  user.id);
+        return this.productService.updateProduct(id, dto, user.id);
     }
-    
+
 
     @UseGuards(JwtAuthGuard)
     @Delete(':id')
     @ApiOperation({ summary: 'Supprimer un produit' })
     @ApiResponse({ status: 200, description: 'Produit supprimé (logique).' })
-    async delete(@Param('id') id: string,@Req() req: Request,) {
+    async delete(@Param('id') id: string, @Req() req: Request,) {
         const user = req.user as any;
         return this.productService.deleteProduct(id, user.id);
     }
 
-    
+
     @Get()
     @ApiOperation({ summary: 'Liste paginée de tous les produits' })
     @ApiQuery({ name: 'page', required: false, type: Number, example: 1 })
@@ -109,13 +109,14 @@ export class ProductController {
     @ApiOperation({ summary: 'Liste paginée de tous les produits avec leur statut et images' })
     @ApiQuery({ name: 'page', required: false, type: Number, example: 1 })
     @ApiQuery({ name: 'limit', required: false, type: Number, example: 10 })
+    @ApiQuery({ name: 'categorie', required: false, type: String, example: 'fruits' })
     @ApiResponse({ status: 200, description: 'Liste des produits récupérée avec succès.' })
-    async getAllProductsWithStatus(@Query() params: PaginationParamsDto) {
-        return this.productService.getAllProductsWithStatus(params);
+    async getAllProductsWithStatus(@Query() params: PaginationParamsDto, @Query('categorie') categorie?: string,) {
+        return this.productService.getAllProductsWithStatus(params, categorie);
     }
 
     // geProduitstById
-    
+
     @Get('get-produit/:id')
     @ApiOperation({ summary: 'Récupérer un produit par ID' })
     @ApiResponse({ status: 200, description: 'Produit trouvé.' })
@@ -125,13 +126,16 @@ export class ProductController {
 
     @UseGuards(JwtAuthGuard)
     @Get('all/produits-admin')
-    @ApiOperation({ summary: 'Liste paginée de tous les produits admin' })
+    @ApiOperation({ summary: 'Liste paginée de tous les produits admin avec filtres' })
     @ApiQuery({ name: 'page', required: false, type: Number, example: 1 })
     @ApiQuery({ name: 'limit', required: false, type: Number, example: 10 })
+    @ApiQuery({ name: 'categorie', required: false, type: String, example: 'Agriculture' })
+    @ApiQuery({ name: 'search', required: false, type: String, example: 'Maïs' })
     @ApiResponse({ status: 200, description: 'Liste des produits récupérée avec succès.' })
-    async getAllProductsAdmin(@Query() params: PaginationParamsDto) {
-        return this.productService.getAllProductsAdmin(params);
+    async getAllProductsAdmin(  @Query() params: PaginationParamsDto,  @Query('categorie') categorie?: string, @Query('search') search?: string,) {
+        return this.productService.getAllProductsAdmin(params, categorie, search);
     }
+
 
     @UseGuards(JwtAuthGuard)
     @Get('donnees/produit-produiteur')
@@ -141,7 +145,7 @@ export class ProductController {
     @ApiResponse({ status: 200, description: 'Liste des produits récupérée avec succès.' })
     async getProducteurProductsByCode(
         @Query() params: PaginationParamsDto,
-        @Query('code') code: string,  ) {
+        @Query('code') code: string,) {
         return this.productService.getProducteurProductsByCode(code, params);
     }
 
@@ -168,7 +172,7 @@ export class ProductController {
     async filterProductsWithStatus(
         @Body() dto: MarketProduitFilterDto,
         @Query() params: PaginationParamsDto) {
-        return this.productService.filterProductsWithStatus( dto, params);
+        return this.productService.filterProductsWithStatus(dto, params);
     }
 
 

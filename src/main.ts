@@ -37,6 +37,7 @@ async function bootstrap() {
     'https://peoogo.com:3000', // ✅ ton front Next.js
     'http://109.199.107.23:3000', // ✅ ton front Next.js
     'http://109.199.107.23:4000', // ✅ ton backend
+    'http://localhost:4000', // ✅ ton backend
   ];
   app.enableCors({
     origin: allowedOrigins,

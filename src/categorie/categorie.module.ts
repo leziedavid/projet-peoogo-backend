@@ -1,16 +1,14 @@
 import { Module } from '@nestjs/common';
-import { StatistiqueController } from './statistique.controller';
-import { StatistiqueService } from './statistique.service';
-
+import { CategorieController } from './categorie.controller';
+import { CategorieService } from './categorie.service';
 
 import { ConfigModule, ConfigService } from '@nestjs/config';
 import { JwtModule } from '@nestjs/jwt';
 import { PassportModule } from '@nestjs/passport';
 import { PrismaModule } from 'src/prisma/prisma.module';
 import { CloudinaryService } from 'src/utils/cloudinary.service';
-import { FunctionService } from 'src/utils/pagination.service';
 import { JwtStrategy } from 'src/strategies/jwt.strategy';
-import { LocalStorageService } from 'src/utils/LocalStorageService';
+import { FunctionService } from 'src/utils/pagination.service';
 
 @Module({
 
@@ -29,7 +27,8 @@ import { LocalStorageService } from 'src/utils/LocalStorageService';
     PassportModule.register({ defaultStrategy: 'jwt' }),
     PrismaModule,
   ],
-  controllers: [StatistiqueController],
-  providers: [StatistiqueService, JwtStrategy, FunctionService, LocalStorageService],  // <-- JwtStrategy ajouté ici
+
+  providers: [CategorieService, CloudinaryService, JwtStrategy, FunctionService],  // <-- JwtStrategy ajouté ici
+  controllers: [CategorieController],
 })
-export class StatistiqueModule { }
+export class CategorieModule { }

@@ -9,7 +9,7 @@ DB_USER="microservices"
 DB_NAME="mseagrie"
 DB_URL="postgresql://$DB_USER@$DB_HOST:$DB_PORT/$DB_NAME"
 BACKUP_DIR="/peoogo/backups"
-
+MICROSERVICES_PASSWORD="microservices"
 echo "📦 Sauvegarde conseillée de la base avant de continuer !"
 
 # Créer le dossier backup si non existant

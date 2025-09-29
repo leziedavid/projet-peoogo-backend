@@ -1,15 +1,29 @@
 
-import { Injectable } from "@nestjs/common";
+import { Injectable, InternalServerErrorException } from "@nestjs/common";
 import { PrismaService } from "src/prisma/prisma.service";
 import { BaseResponse } from 'src/dto/request/base-response.dto';
 import * as ExcelJS from "exceljs";
 import { Response } from "express";
 import { EnrollementsFilterDto } from "src/dto/request/exportEnrollementsFilter.dto";
 import { UsersFilterDto } from "src/dto/request/exportUsersFilter.dto";
+import { LocalStorageService } from "src/utils/LocalStorageService";
+import * as fs from 'fs';
+import * as path from 'path';
+import { getPublicFileUrl } from "src/utils/helper";
 
 @Injectable()
 export class StatistiqueService {
-    constructor(private readonly prisma: PrismaService) { }
+
+    private readonly uploadDir: string;
+
+    constructor(
+        private readonly prisma: PrismaService,
+        private readonly storageService: LocalStorageService,) {
+        this.uploadDir = process.env.FILE_STORAGE_PATH || path.join(process.cwd(), 'uploads');
+        console.log('uploadDir:', this.uploadDir); // debug
+    }
+
+
     async getDashboardStats() {
         // Comptages simples
         const totalOrders = await this.prisma.ecommerceOrder.count();
@@ -308,12 +322,95 @@ export class StatistiqueService {
 
     }
 
+    /**
+     * Récupère la liste des dossiers dans le storage
+     */
+    async fetchFolders(): Promise<BaseResponse<{ name: string; fileCount: number }[]>> {
+        try {
+            if (!fs.existsSync(this.uploadDir)) {
+                return new BaseResponse(200, 'Aucun dossier trouvé', []);
+            }
+
+            const entries = await fs.promises.readdir(this.uploadDir, { withFileTypes: true });
+
+            const folders = entries
+                .filter((entry) => entry.isDirectory())
+                .map((dir) => {
+                    const dirPath = path.join(this.uploadDir, dir.name);
+                    const files = fs.readdirSync(dirPath).filter((f) => fs.statSync(path.join(dirPath, f)).isFile());
+                    return { name: dir.name, fileCount: files.length };
+                });
+
+            return new BaseResponse(200, 'Liste des dossiers récupérée', folders);
+        } catch (error) {
+            console.error(error);
+            return new BaseResponse(500, 'Erreur lors de la récupération des dossiers', null);
+        }
+    }
+
+
+    /**
+     * Sauvegarde les images d'un dossier spécifique ou de tous les dossiers et retourne l'URL du zip
+     */
+    async backupImages(folderNameOrAll: string): Promise<BaseResponse<{ zipUrl: string }>> {
+        try {
+            const timestamp = Date.now();
+
+            if (folderNameOrAll === 'Tous') {
+                const foldersResp = await this.fetchFolders();
+                if (!foldersResp.data || foldersResp.data.length === 0) {
+                    return new BaseResponse(404, 'Aucun dossier trouvé pour la sauvegarde', null);
+                }
+
+                const tmpZipFolder = `backup_all_${timestamp}`;
+                const tmpZipPath = path.join(this.uploadDir, tmpZipFolder);
+                fs.mkdirSync(tmpZipPath, { recursive: true });
+
+                try {
+                    for (const folder of foldersResp.data) {
+                        const sourcePath = path.join(this.uploadDir, folder.name);
+                        const destPath = path.join(tmpZipPath, folder.name);
+                        fs.cpSync(sourcePath, destPath, { recursive: true });
+                    }
+
+                    const zip = await this.storageService.downloadFolderAsZip(tmpZipFolder);
+
+                    // Retourner l'URL publique complète
+                    const publicUrl = getPublicFileUrl(zip.zipUrl);
+                    return new BaseResponse(200, 'Sauvegarde de tous les dossiers réussie', { zipUrl: publicUrl });
+                } finally {
+                    fs.rmSync(tmpZipPath, { recursive: true, force: true });
+                }
+
+            } else {
+                const folderPath = path.join(this.uploadDir, folderNameOrAll);
+                if (!fs.existsSync(folderPath)) {
+                    return new BaseResponse(404, `Dossier ${folderNameOrAll} introuvable`, null);
+                }
+
+                const tmpZipFolder = `${folderNameOrAll}_${timestamp}`;
+                const tmpFolderPath = path.join(this.uploadDir, tmpZipFolder);
+                fs.mkdirSync(tmpFolderPath, { recursive: true });
+
+                try {
+                    fs.cpSync(folderPath, tmpFolderPath, { recursive: true });
+                    const zip = await this.storageService.downloadFolderAsZip(tmpZipFolder);
+
+                    // Retourner l'URL publique complète
+                    const publicUrl = getPublicFileUrl(zip.zipUrl);
+                    return new BaseResponse(200, `Sauvegarde du dossier ${folderNameOrAll} réussie`, { zipUrl: publicUrl });
+                } finally {
+                    fs.rmSync(tmpFolderPath, { recursive: true, force: true });
+                }
+            }
+
+        } catch (error) {
+            console.error('Erreur backupImages:', error);
+            return new BaseResponse(500, 'Erreur lors de la sauvegarde des images', null);
+        }
+    }
 
 }
-
-
-
-
 
 
 

@@ -20,17 +20,13 @@ export class LocalStorageService {
     /**
      * Sauvegarde un fichier buffer ou chemin local
      */
-    async saveFile(
-        fileData: Buffer | string,
-        folder = 'default',
-    ): Promise<{
+    async saveFile( fileData: Buffer | string, folder = 'default',): Promise<{
         fileCode: string;
         fileName: string;
         fileMimeType: string;
         fileSize: number;
         filePath: string;
-        fileUrl: string;
-    }> {
+        fileUrl: string;}> {
         const fileCode = randomUUID();
         const targetDir = path.join(this.uploadDir, folder);
         if (!fs.existsSync(targetDir)) fs.mkdirSync(targetDir, { recursive: true });
@@ -128,7 +124,8 @@ export class LocalStorageService {
         const folderPath = path.join(this.uploadDir, folder);
         if (!fs.existsSync(folderPath)) throw new InternalServerErrorException('Dossier introuvable');
 
-        const zipFileName = `${folder}-${Date.now()}.zip`;
+        const zipFileName = `${folder}.zip`;
+        // const zipFileName = `${folder}-${Date.now()}.zip`;
         const zipPath = path.join(this.uploadDir, zipFileName);
 
         const output = fs.createWriteStream(zipPath);
