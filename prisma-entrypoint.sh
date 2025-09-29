@@ -2,29 +2,31 @@
 set -e
 
 APP_DIR="/app"
+SCHEMA_PATH="prisma/schema.prisma"
 
 echo "🔍 Démarrage du déploiement Prisma..."
 
-# Aller dans le dossier de l'application
 cd "$APP_DIR"
 
 # Vérifier les migrations échouées
-FAILED=$(npx prisma migrate status --print | grep "failed" || echo "")
-
+FAILED=$(npx prisma migrate status --schema="$SCHEMA_PATH" | grep "FAILED" || echo "")
 if [ -n "$FAILED" ]; then
-  echo "⚠️  Des migrations échouées détectées, tentative de résolution..."
+  echo "⚠️  Migrations échouées détectées, résolution automatique..."
   for MIG in $(echo "$FAILED" | awk '{print $1}'); do
     echo "🛠 Marque migration $MIG comme appliquée sans toucher aux données"
-    npx prisma migrate resolve --applied "$MIG"
+    npx prisma migrate resolve --applied "$MIG" --schema="$SCHEMA_PATH"
   done
 else
   echo "✅ Aucune migration échouée détectée"
 fi
 
-echo "🚀 Déploiement des migrations locales"
-npx prisma migrate deploy
+# Déployer toutes les migrations (inclut _init si elle n’a jamais été appliquée)
+echo "🚀 Déploiement des migrations (y compris _init si nécessaire)"
+npx prisma migrate deploy --schema="$SCHEMA_PATH"
+
+# Générer le client Prisma
 echo "🛠 Génération du client Prisma"
-npx prisma generate
+npx prisma generate --schema="$SCHEMA_PATH"
 
 echo "✅ Prisma et la base sont maintenant synchronisés."
 echo "🚀 Démarrage de l'application..."
