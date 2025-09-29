@@ -20,7 +20,18 @@ else
   echo "✅ Aucune migration échouée détectée"
 fi
 
-# Déployer toutes les migrations (inclut _init si elle n’a jamais été appliquée)
+# Vérifier si une migration init existe localement
+INIT_MIG=$(ls prisma/migrations | grep "_init" || echo "")
+
+# Vérifier si la base contient déjà une migration init
+INIT_IN_DB=$(npx prisma migrate status --schema="$SCHEMA_PATH" | grep "_init" || echo "")
+
+if [ -n "$INIT_MIG" ] && [ -n "$INIT_IN_DB" ]; then
+  echo "⚠️  Migration init déjà appliquée en base, on la marque comme résolue"
+  npx prisma migrate resolve --applied "$INIT_MIG" --schema="$SCHEMA_PATH" || true
+fi
+
+# Déployer toutes les migrations restantes
 echo "🚀 Déploiement des migrations (y compris _init si nécessaire)"
 npx prisma migrate deploy --schema="$SCHEMA_PATH"
 
