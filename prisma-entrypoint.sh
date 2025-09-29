@@ -1,9 +1,17 @@
 #!/bin/sh
 set -e
 
+# Variables
 APP_DIR="/app"
 SCHEMA_PATH="prisma/schema.prisma"
+DB_HOST="ms-postgres"
+DB_PORT="5432"
+DB_USER="microservices"
+DB_NAME="mseagrie"
+MICROSERVICES_PASSWORD="microservices"
+DB_URL="postgresql://$DB_USER:$MICROSERVICES_PASSWORD@$DB_HOST:$DB_PORT/$DB_NAME"
 
+echo "📦 Sauvegarde conseillée de la base avant de continuer !"
 echo "🔍 Démarrage du déploiement Prisma..."
 
 cd "$APP_DIR"
@@ -27,8 +35,24 @@ INIT_MIG=$(ls prisma/migrations | grep "_init" || echo "")
 INIT_IN_DB=$(npx prisma migrate status --schema="$SCHEMA_PATH" | grep "_init" || echo "")
 
 if [ -n "$INIT_MIG" ] && [ -n "$INIT_IN_DB" ]; then
-  echo "⚠️  Migration init déjà appliquée en base, on la marque comme résolue"
-  npx prisma migrate resolve --applied "$INIT_MIG" --schema="$SCHEMA_PATH" || true
+  echo "⚠️  Migration init détectée en local et en base, comparaison des hash..."
+
+  # Calcul du hash local
+  INIT_LOCAL_HASH=$(sha256sum "prisma/migrations/$INIT_MIG/migration.sql" | awk '{print $1}')
+
+  # Récupération du hash en base
+  INIT_DB_HASH=$(PGPASSWORD="$MICROSERVICES_PASSWORD" psql "$DB_URL" -t -c \
+    "SELECT checksum FROM _prisma_migrations WHERE migration_name LIKE '%_init%' ORDER BY finished_at DESC LIMIT 1;" | xargs)
+
+  echo "🔍 Hash local : $INIT_LOCAL_HASH"
+  echo "🔍 Hash base  : $INIT_DB_HASH"
+
+  if [ "$INIT_LOCAL_HASH" = "$INIT_DB_HASH" ]; then
+    echo "✅ Migration init identique en base et en local, on la marque comme appliquée"
+    npx prisma migrate resolve --applied "$INIT_MIG" --schema="$SCHEMA_PATH" || true
+  else
+    echo "⚠️ Attention : hash différent → on laisse Prisma appliquer la migration locale"
+  fi
 fi
 
 # Déployer toutes les migrations restantes
