@@ -494,6 +494,25 @@ export class ProductService {
         );
     }
 
+    // ✅ Mettre à jour le statut d’un produit
+    async updateProductStatus( id: string,  status: 'ACTIVE' | 'INACTIVE' | 'BLOCKED' ): Promise<BaseResponse<{ productId: string; newStatus: string }>> {
+        // Vérifier si le produit existe
+        const product = await this.prisma.product.findUnique({ where: { id } });
+        if (!product) throw new NotFoundException('Produit non trouvé');
+
+        // Mettre à jour le statut
+        const updated = await this.prisma.product.update({
+            where: { id },
+            data: { status },
+        });
+
+        return new BaseResponse(  200, 'Statut du produit mis à jour avec succès',
+            {
+                productId: updated.id,
+                newStatus: updated.status,
+            }
+        );
+    }
 
     async getProductById(id: string): Promise<BaseResponse<any>> {
         const product = await this.prisma.product.findUnique({
@@ -754,7 +773,7 @@ export class ProductService {
         const filters: Prisma.ProductWhereInput = {
             status: ProductStatus.ACTIVE,
         };
-        
+
         // 1. CATEGORIE
         if (dto.categorie && dto.categorie.trim() !== '') {
             filters.categories = {
@@ -870,8 +889,7 @@ export class ProductService {
         // 8. Ajouter statut, images, user info
         data.data = await Promise.all(
             data.data.map(async (product) => {
-                const isDisponible =
-                    new Date(product.disponibleDe) <= now && new Date(product.disponibleJusqua) >= now;
+                const isDisponible = new Date(product.disponibleDe) <= now && new Date(product.disponibleJusqua) >= now;
                 const images = await this.getProductImages(product.id);
                 const userInfo = await this.getUserByCodeGenerateOne(product.codeUsers);
                 const mainImageUrl = product.imageUrl ? getPublicFileUrl(product.imageUrl) : null;
@@ -995,7 +1013,7 @@ export class ProductService {
         return new BaseResponse(200, 'Produits utilisateur valides avec découpage', data);
     }
 
-    async getAllProductsAdmin( params: PaginationParamsDto, categorie?: string,  search?: string,): Promise<BaseResponse<any>> {
+    async getAllProductsAdmin(params: PaginationParamsDto, categorie?: string, search?: string,): Promise<BaseResponse<any>> {
         const { page, limit } = params;
         const now = new Date();
         const filters: Prisma.ProductWhereInput = {};

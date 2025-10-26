@@ -8,6 +8,7 @@ import { CreateProductDto, UpdateProductDto } from 'src/dto/request/product.dto'
 import { ProductService } from './product.service';
 import { MarketProduitFilterDto } from 'src/dto/request/marketProduitFilter.dto';
 import { UpdateAvailabilityDto, UpdateQuantityDto } from 'src/dto/request/updateAvailabilityQuantity.dto';
+import { ProductStatus } from '@prisma/client';
 
 
 @ApiTags('Product Api')
@@ -48,11 +49,28 @@ export class ProductController {
     @ApiOperation({ summary: 'Mettre à jour la quantité d’un produit' })
     @ApiResponse({ status: 200, description: 'Quantité mise à jour avec succès.' })
     @ApiBody({ description: 'Quantité mise à jour', type: UpdateQuantityDto })
-    async updateQuantity(
-        @Param('id') id: string,
-        @Body('quantite') quantite: number,
-    ) {
+    async updateQuantity(  @Param('id') id: string,  @Body('quantite') quantite: number,) {
         return this.productService.updateQuantity(id, quantite);
+    }
+
+    @UseGuards(JwtAuthGuard)
+    @Patch(':id/status/update/product')
+    @ApiOperation({ summary: 'Mettre à jour le statut d’un produit' })
+    @ApiResponse({ status: 200, description: 'Statut du produit mis à jour avec succès.' })
+    @ApiBody({
+        schema: {
+            type: 'object',
+            properties: {
+                status: {
+                    type: 'string',
+                    enum: Object.values(ProductStatus),
+                    example: 'ACTIVE',
+                },
+            },
+        },
+    })
+    async updateProductStatus( @Param('id') id: string, @Body('status') status: ProductStatus, ) {
+        return this.productService.updateProductStatus(id, status);
     }
 
     @UseGuards(JwtAuthGuard)
@@ -73,7 +91,6 @@ export class ProductController {
         const user = req.user as any;
         return this.productService.updateProduct(id, dto, user.id);
     }
-
 
     @UseGuards(JwtAuthGuard)
     @Delete(':id')
@@ -132,7 +149,7 @@ export class ProductController {
     @ApiQuery({ name: 'categorie', required: false, type: String, example: 'Agriculture' })
     @ApiQuery({ name: 'search', required: false, type: String, example: 'Maïs' })
     @ApiResponse({ status: 200, description: 'Liste des produits récupérée avec succès.' })
-    async getAllProductsAdmin(  @Query() params: PaginationParamsDto,  @Query('categorie') categorie?: string, @Query('search') search?: string,) {
+    async getAllProductsAdmin(@Query() params: PaginationParamsDto, @Query('categorie') categorie?: string, @Query('search') search?: string,) {
         return this.productService.getAllProductsAdmin(params, categorie, search);
     }
 
