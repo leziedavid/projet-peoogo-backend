@@ -11,6 +11,7 @@ import { MarketProduitFilterDto } from 'src/dto/request/marketProduitFilter.dto'
 import { subHours, subDays } from 'date-fns';
 import { getPublicFileUrl } from 'src/utils/helper';
 import { LocalStorageService } from 'src/utils/LocalStorageService';
+import { DeleteProductImagesDto } from 'src/dto/request/delete-product-images.dto';
 
 @Injectable()
 export class ProductService {
@@ -40,31 +41,15 @@ export class ProductService {
         return `PROD-${String(nextNumber).padStart(4, '0')}`;
     }
 
-    // Recherche un Decoupage correspondant aux critères ou lève une erreur
-    private async findDecoupageOrFail(dtoDecoupage: Partial<CreateDecoupageDto>) {
-        const decoupage = await this.prisma.decoupage.findFirst({
-            where: {
-                districtId: dtoDecoupage.districtId,
-                regionId: dtoDecoupage.regionId,
-                departmentId: dtoDecoupage.departmentId,
-                sousPrefectureId: dtoDecoupage.sousPrefectureId,
-                localiteId: dtoDecoupage.localiteId,
-            },
-        });
 
-        if (!decoupage) {
-            throw new NotFoundException('Découpage non trouvé avec ces critères');
-        }
-        return decoupage;
-    }
 
     // nouvelle version avec plus de robustesse 
 
     private async findDecoupage(decoupage?: any): Promise<string | null> {
         if (!decoupage) return null;
 
-        console.log('decoupage reçu:', decoupage);
-        console.log('type de decoupage:', typeof decoupage);
+        // console.log('decoupage reçu:', decoupage);
+        // console.log('type de decoupage:', typeof decoupage);
 
         // Si c'est un string JSON, on le parse
         let parsedDecoupage;
@@ -79,7 +64,7 @@ export class ProductService {
             parsedDecoupage = decoupage;
         }
 
-        console.log('parsedDecoupage:', parsedDecoupage);
+        // console.log('parsedDecoupage:', parsedDecoupage);
 
         // Extraction simple des IDs
         const districtId = parsedDecoupage.districtId;
@@ -122,29 +107,28 @@ export class ProductService {
         return result?.id || null;
     }
 
-    private async uploadAndSaveSingleFile(productId: string, fileBuffer: Buffer | string, fileType: string, folder: string,): Promise<void> {
-        // Chercher fichier existant et supprimer
-        const existingFile = await this.prisma.fileManager.findFirst({
-            where: { targetId: productId, fileType },
-            orderBy: { createdAt: 'desc' },
-        });
-
-        if (existingFile?.fileCode) {
-            try {
-                // await this.cloudinary.deleteFileByPublicId(existingFile.fileCode);
-                await this.localStorage.deleteFile(existingFile.fileCode);
-
-            } catch (error) {
-                console.warn(`Erreur suppression Cloudinary ${existingFile.fileCode}: ${error.message}`);
-            }
-            await this.prisma.fileManager.deleteMany({
+    private async uploadAndSaveSingleFile(  productId: string, file: Express.Multer.File, fileType: string, folder: string, replaceExisting = false, ): Promise<void> {
+        
+        if (replaceExisting) {
+            const existingFile = await this.prisma.fileManager.findFirst({
                 where: { targetId: productId, fileType },
+                orderBy: { createdAt: 'desc' },
             });
+
+            if (existingFile?.fileCode) {
+                try {
+                    await this.localStorage.deleteFile(existingFile.fileCode);
+                } catch (error) {
+                    console.warn(`Erreur suppression  ${existingFile.fileCode}: ${error.message}`);
+                }
+                await this.prisma.fileManager.deleteMany({
+                    where: { targetId: productId, fileType },
+                });
+            }
         }
 
         // Upload fichier
-        // const uploadResult = await this.cloudinary.uploadFile(fileBuffer, folder);
-        const uploadResult = await this.localStorage.saveFile(fileBuffer, folder);
+        const uploadResult = await this.localStorage.saveFile(file.buffer, folder);
 
         // Sauvegarde en DB
         await this.prisma.fileManager.create({
@@ -155,6 +139,7 @@ export class ProductService {
             },
         });
     }
+
 
     private parseStringOrArray<T = string>(input: unknown): T[] {
         if (Array.isArray(input)) {
@@ -398,8 +383,7 @@ export class ProductService {
             // Étape 3 : Upload autres images
             if (autreImage && autreImage.length > 0) {
                 for (const file of autreImage) {
-
-                    await this.uploadAndSaveSingleFile(product.id, file.buffer, 'productFiles', 'products');
+                    await this.uploadAndSaveSingleFile(product.id, file.buffer, 'productFiles', 'products', false);
                 }
             }
 
@@ -508,13 +492,13 @@ export class ProductService {
             });
 
             // Sauvegarde du fichier uploadé en base
-            await this.uploadAndSaveSingleFile(id, image, fileType, 'products');
+            await this.uploadAndSaveSingleFile(id, image, fileType, 'products', true);
         }
-
+        // console.log('liste des autre Image:', autreImage);
         // Pour les autres images, on ajoute sans supprimer les existantes
         if (autreImage && autreImage.length > 0) {
             for (const file of autreImage) {
-                await this.uploadAndSaveSingleFile(id, file.buffer, fileType, 'products');
+                await this.uploadAndSaveSingleFile(id, file.buffer, fileType, 'products', false);
             }
         }
 
@@ -651,6 +635,64 @@ export class ProductService {
 
         return new BaseResponse(200, 'Produit supprimé', null);
     }
+
+
+    async deleteProductImages(productId: string, dto: DeleteProductImagesDto): Promise<BaseResponse<null>> {
+        // 🔍 Vérifie si le produit existe
+        const product = await this.prisma.product.findUnique({ where: { id: productId } });
+
+        if (!product) {
+            throw new NotFoundException('Produit introuvable');
+        }
+
+        // 🔍 Nettoie et normalise les URLs pour ne garder que la partie relative "/uploads/..."
+        const cleanedUrls = dto.fileUrls.map(url => {
+            // Cherche la partie "uploads/..."
+            const regex = /.*?(uploads\/.*)/;
+            const match = url.match(regex);
+            if (match) {
+                // Ajoute le "/" devant si absent
+                return match[1].startsWith('/') ? match[1] : `/${match[1]}`;
+            }
+            // Si "uploads/" non trouvé, on laisse tel quel (ou on peut filtrer)
+            return url;
+        });
+
+        // 🔍 Récupère les fichiers associés au produit
+        const files = await this.prisma.fileManager.findMany({
+            where: {
+                targetId: productId,
+                fileUrl: { in: cleanedUrls },
+            },
+        });
+
+        if (files.length === 0) {
+            throw new NotFoundException('Aucun fichier correspondant trouvé pour ce produit.');
+        }
+
+        // 🗑️ Suppression physique
+        for (const file of files) {
+            try {
+                if (file.fileCode) {
+                    await this.localStorage.deleteFile(file.fileCode);
+                    // await this.cloudinary.deleteFileByPublicId(file.fileCode); // si Cloudinary
+                }
+            } catch (error) {
+                console.warn(`Erreur suppression fichier ${file.fileCode} : ${error.message}`);
+            }
+        }
+
+        // 🧹 Supprime les entrées correspondantes dans la table fileManager
+        await this.prisma.fileManager.deleteMany({
+            where: {
+                targetId: productId,
+                fileUrl: { in: cleanedUrls },
+            },
+        });
+
+        return new BaseResponse(200, 'Image(s) supprimée(s) avec succès', null);
+    }
+
 
     async getAllProducts(params: PaginationParamsDto): Promise<BaseResponse<any>> {
         const { page = 1, limit = 10 } = params;

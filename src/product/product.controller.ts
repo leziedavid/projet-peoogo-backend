@@ -9,6 +9,7 @@ import { ProductService } from './product.service';
 import { MarketProduitFilterDto } from 'src/dto/request/marketProduitFilter.dto';
 import { UpdateAvailabilityDto, UpdateQuantityDto } from 'src/dto/request/updateAvailabilityQuantity.dto';
 import { ProductStatus } from '@prisma/client';
+import { DeleteProductImagesDto } from 'src/dto/request/delete-product-images.dto';
 
 
 @ApiTags('Product Api')
@@ -49,7 +50,7 @@ export class ProductController {
     @ApiOperation({ summary: 'Mettre à jour la quantité d’un produit' })
     @ApiResponse({ status: 200, description: 'Quantité mise à jour avec succès.' })
     @ApiBody({ description: 'Quantité mise à jour', type: UpdateQuantityDto })
-    async updateQuantity(  @Param('id') id: string,  @Body('quantite') quantite: number,) {
+    async updateQuantity(@Param('id') id: string, @Body('quantite') quantite: number,) {
         return this.productService.updateQuantity(id, quantite);
     }
 
@@ -69,7 +70,7 @@ export class ProductController {
             },
         },
     })
-    async updateProductStatus( @Param('id') id: string, @Body('status') status: ProductStatus, ) {
+    async updateProductStatus(@Param('id') id: string, @Body('status') status: ProductStatus,) {
         return this.productService.updateProductStatus(id, status);
     }
 
@@ -101,6 +102,11 @@ export class ProductController {
         return this.productService.deleteProduct(id, user.id);
     }
 
+    @Delete(':id/images')
+    @ApiOperation({ summary: '🗑️ Supprimer une ou plusieurs images d’un produit' })
+    async deleteProductImages( @Param('id') productId: string, @Body() dto: DeleteProductImagesDto, ) {
+        return this.productService.deleteProductImages(productId, dto);
+    }
 
     @Get()
     @ApiOperation({ summary: 'Liste paginée de tous les produits' })
