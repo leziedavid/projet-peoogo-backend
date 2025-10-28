@@ -58,6 +58,70 @@ export class ProductService {
         return decoupage;
     }
 
+    // nouvelle version avec plus de robustesse 
+
+    private async findDecoupage(decoupage?: any): Promise<string | null> {
+        if (!decoupage) return null;
+
+        console.log('decoupage reçu:', decoupage);
+        console.log('type de decoupage:', typeof decoupage);
+
+        // Si c'est un string JSON, on le parse
+        let parsedDecoupage;
+        if (typeof decoupage === 'string') {
+            try {
+                parsedDecoupage = JSON.parse(decoupage);
+            } catch (error) {
+                console.log('Erreur parsing JSON:', error);
+                return null;
+            }
+        } else {
+            parsedDecoupage = decoupage;
+        }
+
+        console.log('parsedDecoupage:', parsedDecoupage);
+
+        // Extraction simple des IDs
+        const districtId = parsedDecoupage.districtId;
+        const regionId = parsedDecoupage.regionId;
+        const departmentId = parsedDecoupage.departmentId;
+        const sousPrefectureId = parsedDecoupage.sousPrefectureId;
+        const localiteId = parsedDecoupage.localiteId;
+
+        console.log('IDs extraits:', {
+            districtId,
+            regionId,
+            departmentId,
+            sousPrefectureId,
+            localiteId
+        });
+
+        // Vérification que tous les IDs sont présents
+        if (!districtId || !regionId || !departmentId || !sousPrefectureId || !localiteId) {
+            console.log('Un ou plusieurs IDs manquent');
+            return null;
+        }
+
+        // Recherche dans la base
+        const result = await this.prisma.decoupage.findUnique({
+            where: {
+                districtId_regionId_departmentId_sousPrefectureId_localiteId: {
+                    districtId,
+                    regionId,
+                    departmentId,
+                    sousPrefectureId,
+                    localiteId
+                }
+            },
+            select: {
+                id: true,
+            },
+        });
+
+        console.log('Résultat trouvé:', result);
+        return result?.id || null;
+    }
+
     private async uploadAndSaveSingleFile(productId: string, fileBuffer: Buffer | string, fileType: string, folder: string,): Promise<void> {
         // Chercher fichier existant et supprimer
         const existingFile = await this.prisma.fileManager.findFirst({
@@ -274,7 +338,7 @@ export class ProductService {
     }
 
     async createProduct(dto: CreateProductDto, userId: string): Promise<BaseResponse<{ productId: string }>> {
-        const decoupages = await this.findDecoupageOrFail(dto.decoupage);
+        const decoupages = await this.findDecoupage(dto.decoupage);
         const { image, autreImage, prixUnitaire, prixEnGros, quantite, decoupage, categories, ...productData } = dto as any;
 
         try {
@@ -286,7 +350,7 @@ export class ProductService {
             // Étape 1 : Création du produit sans image
             const dataToSave: any = {
                 ...productData,
-                decoupageId: decoupages.id,
+                decoupageId: decoupages,
                 nom: dto.nom,
                 description: dto.description,
                 saleType: dto.saleType,
@@ -360,8 +424,8 @@ export class ProductService {
 
         let decoupageId = existing.decoupageId;
         if (decoupage) {
-            const decoupages = await this.findDecoupageOrFail(decoupage);
-            decoupageId = decoupages.id;
+            const decoupages = await this.findDecoupage(decoupage);
+            decoupageId = decoupages;
         }
 
         // Préparation des données à mettre à jour (sans imageUrl)
@@ -495,7 +559,7 @@ export class ProductService {
     }
 
     // ✅ Mettre à jour le statut d’un produit
-    async updateProductStatus( id: string,  status: 'ACTIVE' | 'INACTIVE' | 'BLOCKED' ): Promise<BaseResponse<{ productId: string; newStatus: string }>> {
+    async updateProductStatus(id: string, status: 'ACTIVE' | 'INACTIVE' | 'BLOCKED'): Promise<BaseResponse<{ productId: string; newStatus: string }>> {
         // Vérifier si le produit existe
         const product = await this.prisma.product.findUnique({ where: { id } });
         if (!product) throw new NotFoundException('Produit non trouvé');
@@ -506,7 +570,7 @@ export class ProductService {
             data: { status },
         });
 
-        return new BaseResponse(  200, 'Statut du produit mis à jour avec succès',
+        return new BaseResponse(200, 'Statut du produit mis à jour avec succès',
             {
                 productId: updated.id,
                 newStatus: updated.status,

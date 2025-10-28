@@ -305,7 +305,7 @@ export class EnrollementsService {
             }
 
             const decoupages = await this.findDecoupage(dto.decoupage);
-
+            
             if (!decoupages) {
                 throw new NotFoundException('Découpage non trouvé avec ces critères');
             }
