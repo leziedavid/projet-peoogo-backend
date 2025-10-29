@@ -107,8 +107,8 @@ export class ProductService {
         return result?.id || null;
     }
 
-    private async uploadAndSaveSingleFile(  productId: string, file: Express.Multer.File, fileType: string, folder: string, replaceExisting = false, ): Promise<void> {
-        
+    private async uploadAndSaveSingleFile(productId: string, file: Express.Multer.File, fileType: string, folder: string, replaceExisting = false,): Promise<void> {
+
         if (replaceExisting) {
             const existingFile = await this.prisma.fileManager.findFirst({
                 where: { targetId: productId, fileType },
@@ -718,7 +718,9 @@ export class ProductService {
                     categories: true,
                 },
             },
-            orderBy: { disponibleDe: 'desc' },
+            orderBy: { createdAt: 'desc' },
+            // orderBy: { disponibleDe: 'desc' },
+
         };
 
         const data = await this.functionService.paginate(paginateOptions);
@@ -773,7 +775,8 @@ export class ProductService {
                     categories: true,
                 },
             },
-            orderBy: { disponibleDe: 'desc' },
+            // orderBy: { disponibleDe: 'desc' },
+            orderBy: { createdAt: 'desc' },
         };
 
         const data = await this.functionService.paginate(paginateOptions);
@@ -838,7 +841,8 @@ export class ProductService {
                     categories: true, // inclure les catégories pour info
                 },
             },
-            orderBy: { disponibleDe: 'desc' },
+            // orderBy: { disponibleDe: 'desc' },
+            orderBy: { createdAt: 'desc' },
         };
 
         const data = await this.functionService.paginate(paginateOptions);
@@ -987,7 +991,8 @@ export class ProductService {
                     categories: true,
                 },
             },
-            orderBy: { disponibleDe: 'desc' },
+            // orderBy: { disponibleDe: 'desc' },
+            orderBy: { createdAt: 'desc' },
         };
 
         const data = await this.functionService.paginate(paginateOptions);
