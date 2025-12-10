@@ -22,6 +22,8 @@ export class ImportDecoupageController {
     @UseInterceptors(FileInterceptor('file'))
     async uploadFile(@UploadedFile() file: Express.Multer.File) {
 
+        console.log('Fichier reçu:', file?.originalname);
+    
         if (!file) {
             throw new BadRequestException('Fichier manquant');
         }
