@@ -37,6 +37,7 @@ async function bootstrap() {
     'https://peoogo.com:3000', // ✅ ton front Next.js
     'http://109.199.107.23:3000', // ✅ ton front Next.js
     'http://109.199.107.23:4000', // ✅ ton backend
+    'http://109.199.107.23:4001', // ✅ ton backend
     'http://localhost:4000', // ✅ ton backend
   ];
   app.enableCors({
@@ -64,6 +65,7 @@ async function bootstrap() {
       'access-token',
     )
     .addServer('http://109.199.107.23:4000', 'dev avec adress IP')
+    .addServer('http://109.199.107.23:4001', 'preprod avec adress IP')
     .addServer('https://api.peoogo.com', 'Production')
     .addServer('https://backend.peoogo.com', 'Test backend')
     .addServer('https://dev.peoogo.com', 'Dev')
